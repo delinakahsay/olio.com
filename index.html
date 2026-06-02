@@ -465,7 +465,21 @@ Return ONLY real products that actually exist. Be specific with brand names and 
  
   const json=await res.json();
   const text=json.choices?.[0]?.message?.content||'';
-  const parsed=JSON.parse(text);
+  
+  if(!text){
+    throw new Error('No response from OpenAI. The API may be overloaded or your key may be invalid.');
+  }
+  
+  let parsed;
+  try{
+    parsed=JSON.parse(text);
+  }catch(e){
+    throw new Error('Failed to parse API response: '+e.message);
+  }
+  
+  if(!parsed.products || !Array.isArray(parsed.products)){
+    throw new Error('Invalid response format from API');
+  }
  
   return {
     summary:parsed.summary||'',
