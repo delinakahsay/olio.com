@@ -375,16 +375,11 @@ nav{
 <script>
 let cart=[],saved=[],allResults=[],activeCat='';
  
-// REPLACE THIS WITH YOUR REAL KEY
-let OPENAI_KEY = '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';
- 
 function openSettings(){document.getElementById('settingsModal').classList.add('open');}
 function closeSettings(){document.getElementById('settingsModal').classList.remove('open');}
 function saveKeys(){
-  const k=document.getElementById('openaiKeyInput').value.trim();
-  if(k)OPENAI_KEY=k;
   closeSettings();
-  showToast('Key saved for this session');
+  showToast('Settings closed');
 }
 function toggleCat(c){
   if(activeCat===c){activeCat='';document.getElementById('pill-'+c).classList.remove('active');}
@@ -394,7 +389,6 @@ function toggleCat(c){
 async function doSearch(){
   const q=document.getElementById('searchInput').value.trim();
   if(!q){showToast('Type what you are looking for');return;}
-  if(!OPENAI_KEY||OPENAI_KEY==='YOUR_OPENAI_KEY_HERE'){openSettings();showToast('Add your OpenAI key first');return;}
  
   const btn=document.getElementById('searchBtn');
   btn.disabled=true;btn.textContent='Searching...';
@@ -413,7 +407,7 @@ async function doSearch(){
   document.getElementById('resultsSection').scrollIntoView({behavior:'smooth'});
  
   try{
-    const data=await callOpenAI(context);
+    const data=await callSearchAPI(context);
     showLoading(false);
     allResults=data.products;
     renderResults(data.products);
@@ -425,76 +419,30 @@ async function doSearch(){
   }catch(err){
     showLoading(false);
     document.getElementById('productGrid').innerHTML='<div style="color:var(--muted);padding:2rem;text-align:center;font-size:0.9rem;">'+
-      (err.message||'Something went wrong. Check your API key in settings.')+'</div>';
+      (err.message||'Something went wrong. Try again.')+'</div>';
   }
   btn.disabled=false;btn.textContent='Search';
 }
  
-async function callOpenAI(query){
-  const res=await fetch('https://api.openai.com/v1/chat/completions',{
+async function callSearchAPI(query){
+  const res=await fetch('/api/search',{
     method:'POST',
-    headers:{'Content-Type':'application/json','Authorization':'Bearer '+OPENAI_KEY},
-    body:JSON.stringify({
-      model:'gpt-4o-mini',
-      max_tokens:2000,
-      response_format:{type:'json_object'},
-      messages:[{
-        role:'system',
-        content:`You are Olio, an AI shopping assistant. The user describes what they want. Return a JSON object with:
-- "summary": 2 friendly sentences with a specific shopping tip for this search
-- "products": array of 8-12 product objects, each with:
-  - "name": specific real product name (brand + model)
-  - "price": realistic price as a number (USD)
-  - "source": the store/retailer where this product is commonly sold (Amazon, Target, Nordstrom, etc.)
-  - "description": 1-2 sentence description of why this product matches their needs
-  - "searchUrl": a Google Shopping search URL for this exact product (format: https://www.google.com/search?tbm=shop&q=PRODUCT+NAME+encoded)
-  - "imageQuery": a concise search query to find an image of this product
- 
-Return ONLY real products that actually exist. Be specific with brand names and models. Vary the price range and retailers. Match the user's described needs closely.`
-      },{
-        role:'user',
-        content:query
-      }]
-    })
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({query})
   });
  
   if(!res.ok){
     const err=await res.json().catch(()=>({}));
-    throw new Error(err.error?.message||'API request failed. Check your OpenAI key.');
+    throw new Error(err.error||'Search failed');
   }
  
-  const json=await res.json();
-  const text=json.choices?.[0]?.message?.content||'';
+  const data=await res.json();
   
-  if(!text){
-    throw new Error('No response from OpenAI. The API may be overloaded or your key may be invalid.');
-  }
-  
-  let parsed;
-  try{
-    parsed=JSON.parse(text);
-  }catch(e){
-    throw new Error('Failed to parse API response: '+e.message);
-  }
-  
-  if(!parsed.products || !Array.isArray(parsed.products)){
-    throw new Error('Invalid response format from API');
+  if(!data.products || !Array.isArray(data.products)){
+    throw new Error('Invalid response from server');
   }
  
-  return {
-    summary:parsed.summary||'',
-    products:(parsed.products||[]).map((p,i)=>({
-      id:i,
-      title:p.name||'Product',
-      price:'$'+Number(p.price||0).toFixed(2),
-      priceNum:Number(p.price||0),
-      source:p.source||'Online',
-      link:p.searchUrl||'https://www.google.com/search?tbm=shop&q='+encodeURIComponent(p.name),
-      snippet:p.description||'',
-      imageQuery:p.imageQuery||p.name,
-      thumbnail:null
-    }))
-  };
+  return data;
 }
  
 function renderResults(results){
