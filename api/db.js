@@ -71,34 +71,70 @@ async function supabaseFetch(endpoint, options = {}) {
   }
 }
 
+function normalizeSupabaseUser(row) {
+  if (!row) return null;
+  return {
+    id: row.id || row.ID || row.Id || null,
+    email: row.email || row.EMAIL || null,
+    passwordHash: row.passwordHash || row.passwordhash || row.password_hash || null,
+    salt: row.salt || row.SALT || null,
+    token: row.token || row.TOKEN || null,
+    savedItems: row.savedItems || row.saveditems || row.saved_items || [],
+    orders: row.orders || row.ORDERS || row.order || row.orders || [],
+    createdAt: row.createdAt || row.createdat || row.created_at || null,
+  };
+}
+
+function supabasePayload(user) {
+  const payload = {};
+  if (user.id !== undefined) payload.id = user.id;
+  if (user.email !== undefined) payload.email = user.email;
+  if (user.passwordHash !== undefined) payload.passwordhash = user.passwordHash;
+  if (user.salt !== undefined) payload.salt = user.salt;
+  if (user.token !== undefined) payload.token = user.token;
+  if (user.savedItems !== undefined) payload.saveditems = user.savedItems;
+  if (user.orders !== undefined) payload.orders = user.orders;
+  if (user.createdAt !== undefined) payload.createdat = user.createdAt;
+  return payload;
+}
+
 async function supabaseGetUserByEmail(email) {
-  const rows = await supabaseFetch(`users?email=eq.${encodeURIComponent(email)}&select=*`, { method: 'GET' });
-  return Array.isArray(rows) ? rows[0] || null : null;
+  const rows = await supabaseFetch(`users?email=eq.${encodeURIComponent(email)}&select=*`, {
+    method: 'GET',
+  });
+  const row = Array.isArray(rows) ? rows[0] || null : null;
+  return normalizeSupabaseUser(row);
 }
 
 async function supabaseGetUserByToken(token) {
-  const rows = await supabaseFetch(`users?token=eq.${encodeURIComponent(token)}&select=*`, { method: 'GET' });
-  return Array.isArray(rows) ? rows[0] || null : null;
+  const rows = await supabaseFetch(`users?token=eq.${encodeURIComponent(token)}&select=*`, {
+    method: 'GET',
+  });
+  const row = Array.isArray(rows) ? rows[0] || null : null;
+  return normalizeSupabaseUser(row);
 }
 
 async function supabaseCreateUser(user) {
+  const payload = supabasePayload(user);
   const rows = await supabaseFetch('users?select=*', {
     method: 'POST',
     headers: { Prefer: 'return=representation' },
-    body: JSON.stringify(user),
+    body: JSON.stringify(payload),
   });
-  return Array.isArray(rows) ? rows[0] || null : null;
+  const row = Array.isArray(rows) ? rows[0] || null : null;
+  return normalizeSupabaseUser(row);
 }
 
 async function supabaseUpdateUser(id, updates) {
+  const payload = supabasePayload(updates);
   const rows = await supabaseFetch(`users?id=eq.${encodeURIComponent(id)}&select=*`, {
     method: 'PATCH',
     headers: { Prefer: 'return=representation' },
-    body: JSON.stringify(updates),
+    body: JSON.stringify(payload),
   });
-  return Array.isArray(rows) ? rows[0] || null : null;
+  const row = Array.isArray(rows) ? rows[0] || null : null;
+  return normalizeSupabaseUser(row);
 }
-
 async function getUserByEmail(email) {
   if (USE_SUPABASE) {
     return supabaseGetUserByEmail(normalizeEmail(email));
