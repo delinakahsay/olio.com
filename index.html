@@ -438,7 +438,7 @@ async function submitAccount(){
   }
   const action=accountMode==='login'?'login':'register';
   try{
-    const res=await fetch('/api/auth?action='+action,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email,password})});
+    const res=await fetch('/api/auth?action='+action,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({action,email,password})});
     const data=await res.json();
     if(!res.ok){
       showAccountMessage(data.error||'Auth failed',false);

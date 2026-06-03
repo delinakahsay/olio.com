@@ -6,7 +6,9 @@ module.exports = async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { action, email, password } = req.body || {};
+  const body = req.body || {};
+  const action = body.action || req.query?.action;
+  const { email, password } = body;
   if (!email || !password) {
     return res.status(400).json({ error: 'Email and password are required' });
   }
