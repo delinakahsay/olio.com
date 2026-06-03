@@ -77,30 +77,56 @@ module.exports = async function handler(req, res) {
       throw new Error('Invalid response format from OpenAI');
     }
 
-    return res.status(200).json({
-      summary: parsed.summary || '',
-      products: parsed.products.map((p, i) => {
-        const title = p.name || 'Product';
-        const candidate = String(p.productUrl || p.searchUrl || p.url || p.link || '').trim();
-        const link = /^https?:\/\//i.test(candidate)
-          ? candidate
-          : 'https://www.google.com/search?tbm=shop&q=' + encodeURIComponent(title);
-        const imageUrl = p.imageUrl ? String(p.imageUrl).trim() : '';
-        const thumbnail = /^https?:\/\//i.test(imageUrl) ? imageUrl : null;
+    const isHttpUrl = (value) => /^https?:\/\//i.test(String(value || '').trim());
 
-        return {
-          id: i,
-          title,
-          price: '$' + Number(p.price || 0).toFixed(2),
-          priceNum: Number(p.price || 0),
-          source: p.source || 'Online',
-          link,
-          snippet: p.description || '',
-          imageQuery: p.imageQuery || p.name || 'product',
-          thumbnail
-        };
-      })
-    });
+    const checkLinkReachable = async (url) => {
+      if (!isHttpUrl(url)) return false;
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 5000);
+        const headRes = await fetch(url, { method: 'HEAD', redirect: 'follow', signal: controller.signal });
+        clearTimeout(timeout);
+        return headRes.ok || headRes.status === 403 || headRes.status === 405 || headRes.status === 401;
+      } catch (error) {
+        return false;
+      }
+    };
+
+    const products = await Promise.all(parsed.products.map(async (p, i) => {
+      const title = p.name || 'Product';
+      const searchUrl = isHttpUrl(p.searchUrl)
+        ? String(p.searchUrl).trim()
+        : 'https://www.google.com/search?tbm=shop&q=' + encodeURIComponent(title);
+      const candidateUrl = isHttpUrl(p.productUrl)
+        ? String(p.productUrl).trim()
+        : isHttpUrl(p.url)
+          ? String(p.url).trim()
+          : isHttpUrl(p.link)
+            ? String(p.link).trim()
+            : '';
+
+      let link = searchUrl;
+      if (candidateUrl) {
+        const good = await checkLinkReachable(candidateUrl);
+        link = good ? candidateUrl : searchUrl;
+      }
+
+      const imageUrl = isHttpUrl(p.imageUrl) ? String(p.imageUrl).trim() : null;
+
+      return {
+        id: i,
+        title,
+        price: '$' + Number(p.price || 0).toFixed(2),
+        priceNum: Number(p.price || 0),
+        source: p.source || 'Online',
+        link,
+        snippet: p.description || '',
+        imageQuery: p.imageQuery || p.name || 'product',
+        thumbnail: imageUrl
+      };
+    }));
+
+    return res.status(200).json({ summary: parsed.summary || '', products });
   } catch (error) {
     console.error('Search error:', error);
     return res.status(500).json({ error: error.message || 'Something went wrong' });
