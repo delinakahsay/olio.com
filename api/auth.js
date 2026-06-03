@@ -1,4 +1,4 @@
-const { readDB, writeDB, normalizeEmail, hashPassword, createSalt, createToken } = require('./db');
+const { getUserByEmail, createUser, updateUser, normalizeEmail, hashPassword, createSalt, createToken } = require('./db');
 const crypto = require('crypto');
 
 module.exports = async function handler(req, res) {
@@ -19,12 +19,11 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    const db = await readDB();
     const normalizedEmail = normalizeEmail(email);
-    const user = db.users.find((u) => u.email === normalizedEmail);
+    const existingUser = await getUserByEmail(normalizedEmail);
 
     if (action === 'register') {
-      if (user) {
+      if (existingUser) {
         return res.status(400).json({ error: 'Email is already registered' });
       }
 
@@ -44,41 +43,28 @@ module.exports = async function handler(req, res) {
         createdAt: new Date().toISOString(),
       };
 
-      db.users.push(newUser);
-      await writeDB(db);
-
-      return res.status(200).json({
-        token,
-        email: normalizedEmail,
-        savedItems: newUser.savedItems,
-        orders: newUser.orders,
-      });
+      const createdUser = await createUser(newUser);
+      return res.status(200).json({ token: createdUser.token, email: createdUser.email, savedItems: createdUser.savedItems || [], orders: createdUser.orders || [] });
     }
 
     if (action === 'login') {
-      if (!user) {
+      if (!existingUser) {
         return res.status(400).json({ error: 'Invalid email or password' });
       }
 
-      const passwordHash = hashPassword(password, user.salt);
-      if (passwordHash !== user.passwordHash) {
+      const passwordHash = hashPassword(password, existingUser.salt);
+      if (passwordHash !== existingUser.passwordHash) {
         return res.status(400).json({ error: 'Invalid email or password' });
       }
 
-      user.token = createToken();
-      await writeDB(db);
-
-      return res.status(200).json({
-        token: user.token,
-        email: user.email,
-        savedItems: user.savedItems,
-        orders: user.orders,
-      });
+      const token = createToken();
+      const updatedUser = await updateUser(existingUser.id, { token });
+      return res.status(200).json({ token: updatedUser.token, email: updatedUser.email, savedItems: updatedUser.savedItems || [], orders: updatedUser.orders || [] });
     }
 
     return res.status(400).json({ error: 'Invalid auth action' });
   } catch (err) {
     console.error('Auth route error:', err);
-    return res.status(500).json({ error: 'Database error' });
+    return res.status(500).json({ error: 'Server error' });
   }
 };

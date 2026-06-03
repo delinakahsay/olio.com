@@ -1,10 +1,4 @@
-const { readDB, writeDB } = require('./db');
-
-async function getUserByToken(token) {
-  const db = await readDB();
-  const user = db.users.find((u) => u.token === token);
-  return { db, user };
-}
+const { getUserByToken, updateUser } = require('./db');
 
 module.exports = async function handler(req, res) {
   const auth = req.headers.authorization || '';
@@ -15,7 +9,7 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    const { db, user } = await getUserByToken(token);
+    const { user } = await getUserByToken(token);
     if (!user) {
       return res.status(401).json({ error: 'Invalid auth token' });
     }
@@ -35,33 +29,29 @@ module.exports = async function handler(req, res) {
         if (!item || !item.id) {
           return res.status(400).json({ error: 'Item is required' });
         }
-        user.savedItems = user.savedItems || [];
-        if (!user.savedItems.some((saved) => saved.id === item.id)) {
-          user.savedItems.push(item);
+        const savedItems = user.savedItems || [];
+        if (!savedItems.some((saved) => saved.id === item.id)) {
+          savedItems.push(item);
         }
-        await writeDB(db);
-        return res.status(200).json({ savedItems: user.savedItems });
+        const updated = await updateUser(user.id, { savedItems });
+        return res.status(200).json({ savedItems: updated.savedItems || [] });
       }
 
       if (action === 'removeItem') {
-        user.savedItems = (user.savedItems || []).filter((saved) => saved.id !== itemId);
-        await writeDB(db);
-        return res.status(200).json({ savedItems: user.savedItems });
+        const savedItems = (user.savedItems || []).filter((saved) => saved.id !== itemId);
+        const updated = await updateUser(user.id, { savedItems });
+        return res.status(200).json({ savedItems: updated.savedItems || [] });
       }
 
       if (action === 'confirmPurchase') {
         if (!Array.isArray(items) || !items.length) {
           return res.status(400).json({ error: 'Items are required' });
         }
-        user.orders = user.orders || [];
+        const orders = user.orders || [];
         const purchasedAt = new Date().toISOString();
-        const purchasedItems = items.map((item) => ({
-          ...item,
-          purchasedAt,
-        }));
-        user.orders.push(...purchasedItems);
-        await writeDB(db);
-        return res.status(200).json({ orders: user.orders });
+        const purchasedItems = items.map((item) => ({ ...item, purchasedAt }));
+        const updated = await updateUser(user.id, { orders: [...orders, ...purchasedItems] });
+        return res.status(200).json({ orders: updated.orders || [] });
       }
 
       return res.status(400).json({ error: 'Invalid profile action' });
@@ -70,6 +60,6 @@ module.exports = async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   } catch (err) {
     console.error('Profile route error:', err);
-    return res.status(500).json({ error: 'Database error' });
+    return res.status(500).json({ error: 'Server error' });
   }
 };
