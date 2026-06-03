@@ -245,6 +245,22 @@ nav{
 }
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
 
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.45);display:none;align-items:center;justify-content:center;z-index:600;}
+.modal-overlay.open{display:flex;}
+.modal{width:min(420px,calc(100% - 2rem));background:white;border-radius:24px;box-shadow:0 24px 60px rgba(0,0,0,0.18);overflow:hidden;}
+.modal-header{display:flex;justify-content:space-between;align-items:center;padding:1rem 1.25rem;border-bottom:1px solid var(--border);}
+.modal-title{font-size:1.1rem;font-weight:700;}
+.modal-close{background:none;border:none;font-size:1.5rem;cursor:pointer;}
+.modal-body{padding:1.25rem;display:grid;gap:1rem;}
+.account-steps{display:flex;gap:0.5rem;}
+.account-step{flex:1;padding:0.75rem 0.85rem;border:1px solid var(--border);background:var(--tag-bg);border-radius:999px;color:var(--muted);cursor:pointer;text-align:center;font-weight:700;}
+.account-step.active{background:var(--coral);color:white;border-color:transparent;}
+.account-form label{display:block;margin-bottom:0.35rem;font-size:0.86rem;color:var(--muted);}
+.account-form input{width:100%;padding:0.9rem 1rem;border-radius:16px;border:1px solid var(--border);outline:none;font-size:0.95rem;}
+.account-actions{display:flex;justify-content:flex-end;}
+.account-status{font-size:0.92rem;min-height:1.25rem;}
+.account-info{padding:0.85rem 1rem;border-radius:16px;background:var(--peach-light);font-size:0.95rem;}
+
 @media(max-width:640px){
   .panel{width:100%;border-radius:0;}
   .hero-title{font-size:2.5rem;}
@@ -260,6 +276,7 @@ nav{
   <div class="nav-right">
     <button class="nav-btn" onclick="openPanel('saved')">Saved</button>
     <button class="nav-btn" onclick="openPanel('cart')">Cart <span class="cart-count" id="cartCount">0</span></button>
+    <button class="nav-btn" onclick="showAccountModal()" id="accountBtn">Account</button>
   </div>
 </nav>
 
@@ -328,8 +345,37 @@ nav{
 
 <div class="toast" id="toast"></div>
 
+<div class="modal-overlay" id="accountModal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">Account</div>
+      <button class="modal-close" onclick="closeAccountModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="account-steps">
+        <button class="account-step active" id="loginStepBtn" onclick="setAccountMode('login')">Login</button>
+        <button class="account-step" id="registerStepBtn" onclick="setAccountMode('register')">Register</button>
+      </div>
+      <div class="account-form">
+        <label>Email</label>
+        <input type="email" id="accountEmail" placeholder="you@example.com">
+        <label>Password</label>
+        <input type="password" id="accountPassword" placeholder="Password">
+        <div class="account-actions">
+          <button class="btn" onclick="submitAccount()" id="accountSubmitBtn">Login</button>
+        </div>
+      </div>
+      <div class="account-status" id="accountStatus"></div>
+      <div class="account-info" id="accountInfo" style="display:none;">
+        <div>Signed in as <span id="accountEmailDisplay"></span></div>
+        <button class="btn" onclick="signOut()">Sign out</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
-let cart=[],saved=[],allResults=[],activeCat='';
+let cart=[],saved=[],allResults=[],activeCat='';let profile=null;let authToken=localStorage.getItem('olioAuthToken');let accountMode='login';
 
 function isValidHttpUrl(s){
   try{
@@ -341,6 +387,104 @@ function isValidHttpUrl(s){
   }
 }
 
+function setAccountMode(mode){
+  accountMode=mode;
+  document.getElementById('loginStepBtn').classList.toggle('active',mode==='login');
+  document.getElementById('registerStepBtn').classList.toggle('active',mode==='register');
+  document.getElementById('accountSubmitBtn').textContent=mode==='login'?'Login':'Register';
+  document.getElementById('accountStatus').textContent='';
+}
+
+function showAccountModal(){
+  document.getElementById('accountModal').classList.add('open');
+  setAccountMode(accountMode);
+  renderAccountState();
+}
+function closeAccountModal(){
+  document.getElementById('accountModal').classList.remove('open');
+}
+function renderAccountState(){
+  const info=document.getElementById('accountInfo');
+  const status=document.getElementById('accountStatus');
+  const emailDisplay=document.getElementById('accountEmailDisplay');
+  const submitBtn=document.getElementById('accountSubmitBtn');
+  const btn=document.getElementById('accountBtn');
+  if(profile){
+    info.style.display='block';
+    status.style.display='none';
+    emailDisplay.textContent=profile.email||'Unknown';
+    submitBtn.style.display='none';
+    btn.textContent='Signed in';
+    btn.disabled=true;
+  } else {
+    info.style.display='none';
+    status.style.display='block';
+    submitBtn.style.display='inline-block';
+    btn.textContent='Account';
+    btn.disabled=false;
+  }
+}
+function showAccountMessage(msg, success){
+  const status=document.getElementById('accountStatus');
+  status.textContent=msg;
+  status.style.color=success?'#1bc47d':'#ec5f5c';
+}
+async function submitAccount(){
+  const email=document.getElementById('accountEmail').value.trim();
+  const password=document.getElementById('accountPassword').value.trim();
+  if(!email||!password){
+    showAccountMessage('Email and password are required.',false);
+    return;
+  }
+  const action=accountMode==='login'?'login':'register';
+  try{
+    const res=await fetch('/api/auth?action='+action,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email,password})});
+    const data=await res.json();
+    if(!res.ok){
+      showAccountMessage(data.error||'Auth failed',false);
+      return;
+    }
+    authToken=data.token;
+    localStorage.setItem('olioAuthToken',authToken);
+    await loadProfile();
+    showAccountMessage('Signed in successfully',true);
+    renderAccountState();
+  }catch(e){
+    showAccountMessage('Unable to connect',false);
+  }
+}
+async function loadProfile(){
+  if(!authToken){
+    profile=null;
+    renderAccountState();
+    return;
+  }
+  try{
+    const res=await fetch('/api/profile',{headers:{'authorization':'Bearer ' + authToken}});
+    const data=await res.json();
+    if(res.ok){
+      profile=data;
+      saved=data.savedItems||[];
+    } else {
+      profile=null;
+      saved=[];
+      localStorage.removeItem('olioAuthToken');
+    }
+    renderAccountState();
+  }catch(e){
+    profile=null;
+    saved=[];
+    renderAccountState();
+  }
+}
+function signOut(){
+  authToken=null;
+  profile=null;
+  saved=[];
+  localStorage.removeItem('olioAuthToken');
+  showAccountMessage('Signed out',true);
+  renderAccountState();
+}
 
 function toggleCat(c){
   if(activeCat===c){activeCat='';document.getElementById('pill-'+c).classList.remove('active');}
@@ -447,10 +591,14 @@ function toggleCart(id){
 function toggleSave(id){
   const item=allResults.find(r=>r.id===id);if(!item)return;
   const idx=saved.findIndex(s=>s.id===id);
-  if(idx>-1){saved.splice(idx,1);showToast('Removed');}
+  const willRemove = idx > -1;
+  if(willRemove){saved.splice(idx,1);showToast('Removed');}
   else{saved.push(item);showToast('Saved!');}
   const b=document.getElementById('sb-'+id);
   if(b){const is=saved.some(s=>s.id===id);b.innerHTML=is?'\u2665':'\u2661';b.className='btn-save'+(is?' saved':'');}
+  if(profile){
+    fetch('/api/profile?action=' + (willRemove ? 'removeItem' : 'saveItem'),{method:'POST',headers:{'content-type':'application/json','authorization':'Bearer ' + authToken},body:JSON.stringify(willRemove ? {itemId:id} : {item})});
+  }
 }
 
 function openPanel(type){
@@ -507,7 +655,7 @@ function rmCart(id){cart=cart.filter(c=>c.id!==id);
   const b=document.getElementById('cb-'+id);if(b){b.textContent='+ Cart';b.className='btn-cart';}
   openPanel('cart');
 }
-function rmSaved(id){saved=saved.filter(s=>s.id!==id);openPanel('saved');const b=document.getElementById('sb-'+id);if(b){b.innerHTML='\u2661';b.className='btn-save';}}
+function rmSaved(id){saved=saved.filter(s=>s.id!==id);openPanel('saved');const b=document.getElementById('sb-'+id);if(b){b.innerHTML='\u2661';b.className='btn-save';}if(profile){fetch('/api/profile?action=removeItem',{method:'POST',headers:{'content-type':'application/json','authorization':'Bearer ' + authToken},body:JSON.stringify({itemId:id})});}}
 
 function checkoutCart(){
   if(!cart.length){showToast('Your cart is empty');return;}
@@ -519,6 +667,9 @@ function checkoutCart(){
       window.open(safeLink,'_blank');
     }
   });
+  if(profile){
+    fetch('/api/profile?action=confirmPurchase',{method:'POST',headers:{'content-type':'application/json','authorization':'Bearer ' + authToken},body:JSON.stringify({items:cart})});
+  }
   showToast('Opened checkout for each retailer');
 }
 
@@ -529,6 +680,7 @@ function showLoading(show,text){
 }
 function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2200);}
 document.getElementById('searchInput').addEventListener('keydown',e=>{if(e.key==='Enter')doSearch();});
+window.addEventListener('DOMContentLoaded', loadProfile);
 </script>
 </body>
 </html>
