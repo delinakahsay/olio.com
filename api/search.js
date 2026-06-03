@@ -53,15 +53,15 @@ Return ONLY real products that actually exist. Do not invent or use generic sear
     }
 
     const json = await response.json();
-    const text = json.choices?.[0]?.message?.content || '';
+    const content = json.choices?.[0]?.message?.content;
 
-    if (!text) {
+    if (!content) {
       throw new Error('No response from OpenAI');
     }
 
     let parsed;
     try {
-      parsed = JSON.parse(text);
+      parsed = typeof content === 'string' ? JSON.parse(content) : content;
     } catch (e) {
       throw new Error('Failed to parse OpenAI response');
     }
