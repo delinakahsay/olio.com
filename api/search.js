@@ -15,8 +15,25 @@ module.exports = async function handler(req, res) {
     return res.status(500).json({ error: 'SERP_API_KEY not configured in Vercel environment variables' });
   }
 
+  const isHttpUrl = (value) => {
+    try {
+      if (!value) return false;
+      const url = new URL(String(value).trim());
+      return url.protocol === 'http:' || url.protocol === 'https:';
+    } catch (e) {
+      return false;
+    }
+  };
+
+  const safeUrl = (value) => {
+    const candidate = String(value || '').trim();
+    return isHttpUrl(candidate) ? candidate : null;
+  };
+
+  const fallbackSearchLink = (title) =>
+    'https://www.google.com/search?tbm=shop&q=' + encodeURIComponent(title || 'product');
+
   try {
-    // Step 1: Get real products from SerpAPI Google Shopping
     const serpUrl = `https://serpapi.com/search.json?q=${encodeURIComponent(query + ' buy')}&tbm=shop&num=16&api_key=${SERP_KEY}`;
     const serpRes = await fetch(serpUrl);
 
@@ -32,32 +49,36 @@ module.exports = async function handler(req, res) {
       return res.status(200).json({ summary: 'No products found for that search. Try different words.', products: [] });
     }
 
-    // Map real SerpAPI data to our product format
     const products = shopResults.slice(0, 12).map((item, i) => {
-      const priceStr = (item.extracted_price || item.price || '0').toString().replace(/[^0-9.]/g, '');
+      const title = item.title || 'Product';
+      const priceRaw = item.extracted_price || item.price || '';
+      const priceStr = String(priceRaw).replace(/[^0-9.]/g, '');
+      const priceDisplay = item.price || (priceStr ? '$' + Number(priceStr).toFixed(2) : '');
+      const link = safeUrl(item.link) || safeUrl(item.product_link) || fallbackSearchLink(title);
+      const thumbnail = safeUrl(item.thumbnail) || safeUrl(item.image) || null;
+
       return {
         id: i,
-        title: item.title || 'Product',
-        price: item.price || (priceStr ? '$' + Number(priceStr).toFixed(2) : ''),
+        title,
+        price: priceDisplay,
         priceNum: parseFloat(priceStr) || 0,
         source: item.source || 'Shop',
-        link: item.link || item.product_link || '#',
-        snippet: item.snippet || '',
-        thumbnail: item.thumbnail || null,
-        imageQuery: item.title || 'product'
+        link,
+        snippet: item.snippet || item.description || '',
+        thumbnail,
+        imageQuery: title
       };
     });
 
-    // Step 2: Get AI summary (optional, don't fail if OpenAI is missing)
     let summary = '';
     if (OPENAI_KEY) {
       try {
-        const topProducts = products.slice(0, 5).map(p => `${p.title} (${p.price})`).join(', ');
+        const topProducts = products.slice(0, 5).map((p) => `${p.title} (${p.price})`).join(', ');
         const aiRes = await fetch('https://api.openai.com/v1/chat/completions', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${OPENAI_KEY}`
+            Authorization: `Bearer ${OPENAI_KEY}`
           },
           body: JSON.stringify({
             model: 'gpt-4o-mini',
@@ -68,12 +89,12 @@ module.exports = async function handler(req, res) {
             }]
           })
         });
+
         if (aiRes.ok) {
           const aiData = await aiRes.json();
           summary = aiData.choices?.[0]?.message?.content || '';
         }
       } catch (e) {
-        // AI summary is optional, don't fail the whole request
         console.error('AI summary error:', e.message);
       }
     }

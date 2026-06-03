@@ -331,6 +331,17 @@ nav{
 <script>
 let cart=[],saved=[],allResults=[],activeCat='';
 
+function isValidHttpUrl(s){
+  try{
+    if(!s) return false;
+    const url = new URL(String(s).trim());
+    return url.protocol === 'http:' || url.protocol === 'https:';
+  }catch(e){
+    return false;
+  }
+}
+
+
 function toggleCat(c){
   if(activeCat===c){activeCat='';document.getElementById('pill-'+c).classList.remove('active');}
   else{if(activeCat)document.getElementById('pill-'+activeCat).classList.remove('active');activeCat=c;document.getElementById('pill-'+c).classList.add('active');}
@@ -386,7 +397,6 @@ function renderResults(results){
   const g=document.getElementById('productGrid');
   g.innerHTML='';g.style.display='grid';
   if(!results.length){g.innerHTML='<div style="color:var(--muted);padding:2rem;">No products found.</div>';return;}
-
   results.forEach(r=>{
     const inC=cart.some(c=>c.id===r.id);
     const isS=saved.some(s=>s.id===r.id);
@@ -394,22 +404,22 @@ function renderResults(results){
     card.className='product-card';
     card.id='card-'+r.id;
 
-    const imgHtml=r.thumbnail
-      ? '<img src="'+r.thumbnail+'" alt="'+r.title+'" onerror="this.parentElement.innerHTML=\'<span class=placeholder>&#128722;</span>\'">'
-      : '<span class="placeholder">&#128722;</span>';
+    const safeLink = isValidHttpUrl(r.link) ? r.link : 'https://www.google.com/search?tbm=shop&q='+encodeURIComponent(r.title || r.imageQuery || 'product');
+    const imgSrc = isValidHttpUrl(r.thumbnail) ? r.thumbnail : 'https://source.unsplash.com/featured/300x210/?'+encodeURIComponent(r.imageQuery || r.title || 'product');
+    const imgHtml = '<img src="'+imgSrc+'" alt="'+r.title+'" onerror="this.parentElement.innerHTML=\'<span class=placeholder>&#128722;</span>\'">';
 
     card.innerHTML=
-      '<div class="product-img-wrap">'+imgHtml+'</div>'+
+      '<div class="product-img-wrap">'+imgHtml+'</div>'+ 
       '<div class="product-body">'+
-        '<div class="product-source">'+r.source+'</div>'+
-        '<div class="product-title">'+r.title+'</div>'+
+        '<div class="product-source">'+r.source+'</div>'+ 
+        '<div class="product-title">'+r.title+'</div>'+ 
         (r.price?'<div class="product-price">'+r.price+'</div>':'')+
-        '<div class="product-snippet">'+r.snippet+'</div>'+
+        '<div class="product-snippet">'+r.snippet+'</div>'+ 
         '<div class="product-actions">'+
-          '<button class="btn-cart'+(inC?' in-cart':'')+'" id="cb-'+r.id+'" onclick="toggleCart('+r.id+')">'+(inC?'Added':'+ Cart')+'</button>'+
-          '<button class="btn-save'+(isS?' saved':'')+'" id="sb-'+r.id+'" onclick="toggleSave('+r.id+')">'+(isS?'\u2665':'\u2661')+'</button>'+
-          '<a class="btn-link" href="'+r.link+'" target="_blank" rel="noopener">Shop</a>'+
-        '</div>'+
+          '<button class="btn-cart'+(inC?' in-cart':'')+'" id="cb-'+r.id+'" onclick="toggleCart('+r.id+')">'+(inC?'Added':'+ Cart')+'</button>'+ 
+          '<button class="btn-save'+(isS?' saved':'')+'" id="sb-'+r.id+'" onclick="toggleSave('+r.id+')">'+(isS?'♥':'♡')+'</button>'+ 
+          '<a class="btn-link" href="'+safeLink+'" target="_blank" rel="noopener">Shop</a>'+ 
+        '</div>'+ 
       '</div>';
     g.appendChild(card);
   });
@@ -504,7 +514,10 @@ function checkoutCart(){
   const groups={};
   cart.forEach(item=>{const src=item.source||'Online';if(!groups[src])groups[src]=[];groups[src].push(item);});
   Object.values(groups).forEach(items=>{
-    if(items[0]&&items[0].link)window.open(items[0].link,'_blank');
+    if(items[0]){
+      const safeLink = isValidHttpUrl(items[0].link) ? items[0].link : 'https://www.google.com/search?tbm=shop&q='+encodeURIComponent(items[0].title || 'product');
+      window.open(safeLink,'_blank');
+    }
   });
   showToast('Opened checkout for each retailer');
 }
