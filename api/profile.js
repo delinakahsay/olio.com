@@ -14,57 +14,62 @@ module.exports = async function handler(req, res) {
     return res.status(401).json({ error: 'Missing auth token' });
   }
 
-  const { db, user } = await getUserByToken(token);
-  if (!user) {
-    return res.status(401).json({ error: 'Invalid auth token' });
-  }
-
-  if (req.method === 'GET') {
-    return res.status(200).json({
-      email: user.email,
-      savedItems: user.savedItems || [],
-      orders: user.orders || [],
-    });
-  }
-
-  if (req.method === 'POST') {
-    const { action, item, itemId, items } = req.body || {};
-
-    if (action === 'saveItem') {
-      if (!item || !item.id) {
-        return res.status(400).json({ error: 'Item is required' });
-      }
-      user.savedItems = user.savedItems || [];
-      if (!user.savedItems.some((saved) => saved.id === item.id)) {
-        user.savedItems.push(item);
-      }
-      await writeDB(db);
-      return res.status(200).json({ savedItems: user.savedItems });
+  try {
+    const { db, user } = await getUserByToken(token);
+    if (!user) {
+      return res.status(401).json({ error: 'Invalid auth token' });
     }
 
-    if (action === 'removeItem') {
-      user.savedItems = (user.savedItems || []).filter((saved) => saved.id !== itemId);
-      await writeDB(db);
-      return res.status(200).json({ savedItems: user.savedItems });
+    if (req.method === 'GET') {
+      return res.status(200).json({
+        email: user.email,
+        savedItems: user.savedItems || [],
+        orders: user.orders || [],
+      });
     }
 
-    if (action === 'confirmPurchase') {
-      if (!Array.isArray(items) || !items.length) {
-        return res.status(400).json({ error: 'Items are required' });
+    if (req.method === 'POST') {
+      const { action, item, itemId, items } = req.body || {};
+
+      if (action === 'saveItem') {
+        if (!item || !item.id) {
+          return res.status(400).json({ error: 'Item is required' });
+        }
+        user.savedItems = user.savedItems || [];
+        if (!user.savedItems.some((saved) => saved.id === item.id)) {
+          user.savedItems.push(item);
+        }
+        await writeDB(db);
+        return res.status(200).json({ savedItems: user.savedItems });
       }
-      user.orders = user.orders || [];
-      const purchasedAt = new Date().toISOString();
-      const purchasedItems = items.map((item) => ({
-        ...item,
-        purchasedAt,
-      }));
-      user.orders.push(...purchasedItems);
-      await writeDB(db);
-      return res.status(200).json({ orders: user.orders });
+
+      if (action === 'removeItem') {
+        user.savedItems = (user.savedItems || []).filter((saved) => saved.id !== itemId);
+        await writeDB(db);
+        return res.status(200).json({ savedItems: user.savedItems });
+      }
+
+      if (action === 'confirmPurchase') {
+        if (!Array.isArray(items) || !items.length) {
+          return res.status(400).json({ error: 'Items are required' });
+        }
+        user.orders = user.orders || [];
+        const purchasedAt = new Date().toISOString();
+        const purchasedItems = items.map((item) => ({
+          ...item,
+          purchasedAt,
+        }));
+        user.orders.push(...purchasedItems);
+        await writeDB(db);
+        return res.status(200).json({ orders: user.orders });
+      }
+
+      return res.status(400).json({ error: 'Invalid profile action' });
     }
 
-    return res.status(400).json({ error: 'Invalid profile action' });
+    return res.status(405).json({ error: 'Method not allowed' });
+  } catch (err) {
+    console.error('Profile route error:', err);
+    return res.status(500).json({ error: 'Database error' });
   }
-
-  return res.status(405).json({ error: 'Method not allowed' });
 };

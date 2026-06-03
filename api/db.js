@@ -2,7 +2,17 @@ const fs = require('fs').promises;
 const path = require('path');
 const crypto = require('crypto');
 
-const DB_FILE = path.resolve(__dirname, '../data/users.json');
+function getDbFilePath() {
+  if (process.env.DB_FILE) {
+    return path.resolve(process.env.DB_FILE);
+  }
+  if (process.env.VERCEL || process.env.NODE_ENV === 'production') {
+    return path.resolve('/tmp/olio-users.json');
+  }
+  return path.resolve(__dirname, '../data/users.json');
+}
+
+const DB_FILE = getDbFilePath();
 
 async function ensureDataPath() {
   await fs.mkdir(path.dirname(DB_FILE), { recursive: true });
