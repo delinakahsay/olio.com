@@ -79,17 +79,27 @@ module.exports = async function handler(req, res) {
 
     return res.status(200).json({
       summary: parsed.summary || '',
-      products: parsed.products.map((p, i) => ({
-        id: i,
-        title: p.name || 'Product',
-        price: '$' + Number(p.price || 0).toFixed(2),
-        priceNum: Number(p.price || 0),
-        source: p.source || 'Online',
-        link: p.productUrl || p.searchUrl || p.url || p.link || 'https://www.google.com/search?tbm=shop&q=' + encodeURIComponent(p.name || 'product'),
-        snippet: p.description || '',
-        imageQuery: p.imageQuery || p.name || 'product',
-        thumbnail: p.imageUrl || null
-      }))
+      products: parsed.products.map((p, i) => {
+        const title = p.name || 'Product';
+        const candidate = String(p.productUrl || p.searchUrl || p.url || p.link || '').trim();
+        const link = /^https?:\/\//i.test(candidate)
+          ? candidate
+          : 'https://www.google.com/search?tbm=shop&q=' + encodeURIComponent(title);
+        const imageUrl = p.imageUrl ? String(p.imageUrl).trim() : '';
+        const thumbnail = /^https?:\/\//i.test(imageUrl) ? imageUrl : null;
+
+        return {
+          id: i,
+          title,
+          price: '$' + Number(p.price || 0).toFixed(2),
+          priceNum: Number(p.price || 0),
+          source: p.source || 'Online',
+          link,
+          snippet: p.description || '',
+          imageQuery: p.imageQuery || p.name || 'product',
+          thumbnail
+        };
+      })
     });
   } catch (error) {
     console.error('Search error:', error);
