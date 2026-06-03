@@ -34,10 +34,12 @@ export default async function handler(req, res) {
   - "price": realistic price as a number (USD)
   - "source": the store/retailer where this product is commonly sold (Amazon, Target, Nordstrom, etc.)
   - "description": 1-2 sentence description of why this product matches their needs
+  - "productUrl": a direct URL to the product page or store page where this product can be purchased
   - "searchUrl": a Google Shopping search URL for this exact product (format: https://www.google.com/search?tbm=shop&q=PRODUCT+NAME+encoded)
+  - "imageUrl": a direct public image URL for the product if available
   - "imageQuery": a concise search query to find an image of this product
 
-Return ONLY real products that actually exist. Be specific with brand names and models. Vary the price range and retailers. Match the user's described needs closely.`
+Return ONLY real products that actually exist. Do not invent or use generic search pages as `productUrl`. If a direct product page is unavailable, return the next-best store listing or marketplace page for this exact product. Be specific with brand names and models. Vary the price range and retailers. Match the user's described needs closely.`
         }, {
           role: 'user',
           content: query
@@ -76,10 +78,10 @@ Return ONLY real products that actually exist. Be specific with brand names and 
         price: '$' + Number(p.price || 0).toFixed(2),
         priceNum: Number(p.price || 0),
         source: p.source || 'Online',
-        link: p.searchUrl || 'https://www.google.com/search?tbm=shop&q=' + encodeURIComponent(p.name),
+                link: p.productUrl || p.searchUrl || p.url || p.link || 'https://www.google.com/search?tbm=shop&q=' + encodeURIComponent(p.name),
         snippet: p.description || '',
         imageQuery: p.imageQuery || p.name,
-        thumbnail: null
+        thumbnail: p.imageUrl || null
       }))
     });
   } catch (error) {
