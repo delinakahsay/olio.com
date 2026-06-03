@@ -8,7 +8,7 @@ module.exports = async function handler(req, res) {
 
   const body = req.body || {};
   const action = body.action || req.query?.action;
-  const { email, password } = body;
+  const { email, password, name } = body;
 
   if (!email || !password) {
     return res.status(400).json({ error: 'Email and password are required' });
@@ -35,6 +35,7 @@ module.exports = async function handler(req, res) {
       const newUser = {
         id,
         email: normalizedEmail,
+        name: name ? String(name).trim() : '',
         passwordHash,
         salt,
         token,
@@ -44,9 +45,8 @@ module.exports = async function handler(req, res) {
       };
 
       const createdUser = await createUser(newUser);
-      return res.status(200).json({ token: createdUser.token, email: createdUser.email, savedItems: createdUser.savedItems || [], orders: createdUser.orders || [] });
+      return res.status(200).json({ token: createdUser.token, email: createdUser.email, name: createdUser.name || '', savedItems: createdUser.savedItems || [], orders: createdUser.orders || [] });
     }
-
     if (action === 'login') {
       if (!existingUser) {
         return res.status(400).json({ error: 'Invalid email or password' });
@@ -59,9 +59,8 @@ module.exports = async function handler(req, res) {
 
       const token = createToken();
       const updatedUser = await updateUser(existingUser.id, { token });
-      return res.status(200).json({ token: updatedUser.token, email: updatedUser.email, savedItems: updatedUser.savedItems || [], orders: updatedUser.orders || [] });
+      return res.status(200).json({ token: updatedUser.token, email: updatedUser.email, name: updatedUser.name || '', savedItems: updatedUser.savedItems || [], orders: updatedUser.orders || [] });
     }
-
     return res.status(400).json({ error: 'Invalid auth action' });
   } catch (err) {
     console.error('Auth route error:', err);

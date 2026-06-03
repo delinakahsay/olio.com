@@ -17,6 +17,7 @@ module.exports = async function handler(req, res) {
     if (req.method === 'GET') {
       return res.status(200).json({
         email: user.email,
+        name: user.name || '',
         savedItems: user.savedItems || [],
         orders: user.orders || [],
       });

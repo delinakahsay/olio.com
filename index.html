@@ -361,13 +361,15 @@ nav{
         <input type="email" id="accountEmail" placeholder="you@example.com">
         <label>Password</label>
         <input type="password" id="accountPassword" placeholder="Password">
+        <label id="accountNameLabel" style="display:none;">Name</label>
+        <input type="text" id="accountName" placeholder="Your name" style="display:none;">
         <div class="account-actions">
           <button class="btn" onclick="submitAccount()" id="accountSubmitBtn">Login</button>
         </div>
       </div>
       <div class="account-status" id="accountStatus"></div>
       <div class="account-info" id="accountInfo" style="display:none;">
-        <div>Signed in as <span id="accountEmailDisplay"></span></div>
+        <div>Signed in as <span id="accountNameDisplay"></span> (<span id="accountEmailDisplay"></span>)</div>
         <button class="btn" onclick="signOut()">Sign out</button>
       </div>
     </div>
@@ -392,6 +394,16 @@ function setAccountMode(mode){
   document.getElementById('loginStepBtn').classList.toggle('active',mode==='login');
   document.getElementById('registerStepBtn').classList.toggle('active',mode==='register');
   document.getElementById('accountSubmitBtn').textContent=mode==='login'?'Login':'Register';
+  const nameField = document.getElementById('accountName');
+  const nameLabel = document.getElementById('accountNameLabel');
+  if(mode==='register'){
+    nameLabel.style.display='block';
+    nameField.style.display='block';
+  } else {
+    nameLabel.style.display='none';
+    nameField.style.display='none';
+    nameField.value='';
+  }
   document.getElementById('accountStatus').textContent='';
 }
 
@@ -410,12 +422,14 @@ function renderAccountState(){
   const submitBtn=document.getElementById('accountSubmitBtn');
   const btn=document.getElementById('accountBtn');
   if(profile){
+    const nameDisplay=document.getElementById('accountNameDisplay');
     info.style.display='block';
     status.style.display='none';
+    nameDisplay.textContent=profile.name||profile.email||'Signed in';
     emailDisplay.textContent=profile.email||'Unknown';
     submitBtn.style.display='none';
-    btn.textContent='Signed in';
-    btn.disabled=true;
+    btn.textContent = profile.name ? 'Hi, ' + profile.name : 'Profile';
+    btn.disabled=false;
   } else {
     info.style.display='none';
     status.style.display='block';
@@ -432,13 +446,16 @@ function showAccountMessage(msg, success){
 async function submitAccount(){
   const email=document.getElementById('accountEmail').value.trim();
   const password=document.getElementById('accountPassword').value.trim();
+  const name=document.getElementById('accountName').value.trim();
   if(!email||!password){
     showAccountMessage('Email and password are required.',false);
     return;
   }
   const action=accountMode==='login'?'login':'register';
   try{
-    const res=await fetch('/api/auth',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({action,email,password})});
+    const payload = { action, email, password };
+    if(action==='register') payload.name = name;
+    const res=await fetch('/api/auth',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(payload)});
     const text = await res.text();
     let data;
     try { data = JSON.parse(text); } catch(err) { throw new Error('Server returned invalid JSON: ' + text); }

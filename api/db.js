@@ -76,6 +76,7 @@ function normalizeSupabaseUser(row) {
   return {
     id: row.id || row.ID || row.Id || null,
     email: row.email || row.EMAIL || null,
+    name: row.name || row.NAME || row.display_name || row.displayName || '',
     passwordHash: row.passwordHash || row.passwordhash || row.password_hash || null,
     salt: row.salt || row.SALT || null,
     token: row.token || row.TOKEN || null,
@@ -89,6 +90,7 @@ function supabasePayload(user) {
   const payload = {};
   if (user.id !== undefined) payload.id = user.id;
   if (user.email !== undefined) payload.email = user.email;
+  if (user.name !== undefined) payload.name = user.name;
   if (user.passwordHash !== undefined) payload.passwordhash = user.passwordHash;
   if (user.salt !== undefined) payload.salt = user.salt;
   if (user.token !== undefined) payload.token = user.token;
