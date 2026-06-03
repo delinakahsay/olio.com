@@ -427,23 +427,29 @@ async function doSearch(){
 }
  
 async function callSearchAPI(query){
-  const res=await fetch('/api/search',{
+  const res = await fetch('/api/search', {
     method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({query})
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({query})
   });
- 
-  if(!res.ok){
-    const err=await res.json().catch(()=>({}));
-    throw new Error(err.error||'Search failed');
+
+  if (!res.ok) {
+    let detail = '';
+    try {
+      const err = await res.json();
+      detail = err.error || JSON.stringify(err);
+    } catch {
+      detail = await res.text();
+    }
+    throw new Error(`Search failed (${res.status}): ${detail || res.statusText}`);
   }
- 
-  const data=await res.json();
-  
-  if(!data.products || !Array.isArray(data.products)){
+
+  const data = await res.json();
+
+  if (!data.products || !Array.isArray(data.products)) {
     throw new Error('Invalid response from server');
   }
- 
+
   return data;
 }
  
