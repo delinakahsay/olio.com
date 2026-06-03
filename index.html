@@ -438,10 +438,12 @@ async function submitAccount(){
   }
   const action=accountMode==='login'?'login':'register';
   try{
-    const res=await fetch('/api/auth?action='+action,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({action,email,password})});
-    const data=await res.json();
+    const res=await fetch('/api/auth',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({action,email,password})});
+    const text = await res.text();
+    let data;
+    try { data = JSON.parse(text); } catch(err) { throw new Error('Server returned invalid JSON: ' + text); }
     if(!res.ok){
-      showAccountMessage(data.error||'Auth failed',false);
+      showAccountMessage(data.error || 'Auth failed (' + res.status + ')',false);
       return;
     }
     authToken=data.token;
@@ -450,7 +452,8 @@ async function submitAccount(){
     showAccountMessage('Signed in successfully',true);
     renderAccountState();
   }catch(e){
-    showAccountMessage('Unable to connect',false);
+    console.error('Auth error:', e);
+    showAccountMessage('Unable to connect: ' + e.message,false);
   }
 }
 async function loadProfile(){
