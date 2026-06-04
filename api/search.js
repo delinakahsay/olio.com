@@ -1,3 +1,12 @@
+const crypto = require('crypto');
+
+// Stable ID derived from the product's identity (link or title), NOT its position.
+// This means the same product gets the same id across every search and every session,
+// so saved items and cart entries keep matching after logout/login.
+function stableId(seed) {
+  return crypto.createHash('sha1').update(String(seed)).digest('hex').slice(0, 16);
+}
+
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -49,7 +58,7 @@ module.exports = async function handler(req, res) {
       return res.status(200).json({ summary: 'No products found for that search. Try different words.', products: [] });
     }
 
-    const products = shopResults.slice(0, 12).map((item, i) => {
+    const products = shopResults.slice(0, 12).map((item) => {
       const title = item.title || 'Product';
       const priceRaw = item.extracted_price || item.price || '';
       const priceStr = String(priceRaw).replace(/[^0-9.]/g, '');
@@ -58,7 +67,8 @@ module.exports = async function handler(req, res) {
       const thumbnail = safeUrl(item.thumbnail) || safeUrl(item.image) || null;
 
       return {
-        id: i,
+        // Stable across searches: same product -> same id, always.
+        id: stableId(link !== fallbackSearchLink(title) ? link : title),
         title,
         price: priceDisplay,
         priceNum: parseFloat(priceStr) || 0,
