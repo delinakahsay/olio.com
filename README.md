@@ -2,9 +2,6 @@
 
 **AI shopping assistant: describe what you want in plain language, get real products back.** Olio turns a natural-language request into live Google Shopping results, with an AI-written shopping tip, saved items, and a demo checkout.
 
-![Olio screenshot](docs/screenshot.png)
-*(Screenshot coming soon.)*
-
 ## How it works
 
 1. **Search.** The browser posts your query to a serverless function ([api/search.js](api/search.js)), which queries **SerpAPI** (Google Shopping) and normalizes the top results into product cards: title, price, seller, link, thumbnail.
