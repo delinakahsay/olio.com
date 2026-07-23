@@ -81,6 +81,7 @@ function normalizeSupabaseUser(row) {
     salt: row.salt || row.SALT || null,
     token: row.token || row.TOKEN || null,
     savedItems: row.savedItems || row.saveditems || row.saved_items || [],
+    cart: row.cart || row.CART || [],
     orders: row.orders || row.ORDERS || row.order || row.orders || [],
     createdAt: row.createdAt || row.createdat || row.created_at || null,
   };
@@ -95,6 +96,7 @@ function supabasePayload(user) {
   if (user.salt !== undefined) payload.salt = user.salt;
   if (user.token !== undefined) payload.token = user.token;
   if (user.savedItems !== undefined) payload.saveditems = user.savedItems;
+  if (user.cart !== undefined) payload.cart = user.cart;
   if (user.orders !== undefined) payload.orders = user.orders;
   if (user.createdAt !== undefined) payload.createdat = user.createdAt;
   return payload;

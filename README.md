@@ -15,16 +15,17 @@
 
 ## Tech stack
 
-- **Frontend:** single-page vanilla HTML/CSS/JavaScript — no framework, no build step
+- **Frontend:** React 19 + Vite ([src/](src/)) — component-based UI with hooks for search, cart, saved items, and auth state
 - **Backend:** Node.js serverless functions (Vercel-style `api/` directory)
 - **APIs:** SerpAPI (product search), OpenAI `gpt-4o-mini` (summaries, optional)
 - **Storage:** Supabase (production) or local JSON (development)
 
 ## Run it locally
 
-Requires the [Vercel CLI](https://vercel.com/docs/cli) to serve the `api/` functions.
+Requires the [Vercel CLI](https://vercel.com/docs/cli) to serve the React app and `api/` functions together.
 
 ```bash
+npm install
 npm install -g vercel
 vercel dev
 ```

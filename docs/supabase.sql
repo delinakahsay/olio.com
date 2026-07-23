@@ -6,6 +6,7 @@ create table users (
   salt text not null,
   token text,
   savedItems jsonb default '[]',
+  cart jsonb default '[]',
   orders jsonb default '[]',
   createdAt timestamptz default now()
 );

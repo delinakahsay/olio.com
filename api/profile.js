@@ -19,12 +19,16 @@ module.exports = async function handler(req, res) {
         email: user.email,
         name: user.name || '',
         savedItems: user.savedItems || [],
+        cart: user.cart || [],
         orders: user.orders || [],
       });
     }
 
     if (req.method === 'POST') {
-      const { action, item, itemId, items } = req.body || {};
+      const body = req.body || {};
+      // Accept the action from the body, falling back to ?action= for older clients.
+      const action = body.action || (req.query && req.query.action);
+      const { item, itemId, items, cart } = body;
 
       if (action === 'saveItem') {
         if (!item || !item.id) {
@@ -44,14 +48,25 @@ module.exports = async function handler(req, res) {
         return res.status(200).json({ savedItems: updated.savedItems || [] });
       }
 
+      if (action === 'saveCart') {
+        if (!Array.isArray(cart)) {
+          return res.status(400).json({ error: 'Cart must be an array' });
+        }
+        const updated = await updateUser(user.id, { cart });
+        return res.status(200).json({ cart: updated.cart || [] });
+      }
+
       if (action === 'confirmPurchase') {
         if (!Array.isArray(items) || !items.length) {
           return res.status(400).json({ error: 'Items are required' });
         }
         const orders = user.orders || [];
-        const purchasedAt = new Date().toISOString();
-        const purchasedItems = items.map((item) => ({ ...item, purchasedAt }));
-        const updated = await updateUser(user.id, { orders: [...orders, ...purchasedItems] });
+        const order = {
+          purchasedAt: new Date().toISOString(),
+          total: items.reduce((sum, it) => sum + (Number(it.priceNum) || 0), 0),
+          items,
+        };
+        const updated = await updateUser(user.id, { orders: [...orders, order], cart: [] });
         return res.status(200).json({ orders: updated.orders || [] });
       }
 
