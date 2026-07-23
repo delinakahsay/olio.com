@@ -4,7 +4,7 @@ function PanelItem({ item, onRemove }) {
   return (
     <div className="panel-item">
       <div className="panel-item-img">
-        {isValidHttpUrl(item.thumbnail) ? <img src={item.thumbnail} alt="" /> : <>&#128722;</>}
+        {isValidHttpUrl(item.thumbnail) ? <img src={item.thumbnail} alt="" /> : <>&#9675;</>}
       </div>
       <div className="panel-item-info">
         <div className="panel-item-title">{item.title}</div>
@@ -40,7 +40,7 @@ export default function SidePanel({ type, cart, saved, onClose, onRemoveCart, on
         <div className="panel-body">
           {!items.length ? (
             <div className="panel-empty">
-              {isCart ? <>&#128722;</> : <>&#9825;</>}
+              {isCart ? <>&#9675;</> : <>&#9825;</>}
               <span>{isCart ? 'Your cart is empty' : 'Nothing saved yet'}</span>
             </div>
           ) : isCart ? (

@@ -4,7 +4,7 @@ function ProfileRow({ item }) {
   return (
     <div className="profile-row">
       <div className="profile-row-img">
-        {isValidHttpUrl(item.thumbnail) ? <img src={item.thumbnail} alt="" /> : <>&#128722;</>}
+        {isValidHttpUrl(item.thumbnail) ? <img src={item.thumbnail} alt="" /> : <>&#9675;</>}
       </div>
       <div className="profile-row-info">
         <div className="profile-row-title">{item.title}</div>

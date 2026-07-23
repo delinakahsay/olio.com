@@ -11,7 +11,7 @@ export default function ProductCard({ product, inCart, isSaved, onToggleCart, on
       <div className="product-img-wrap">
         {showImg
           ? <img src={product.thumbnail} alt={product.title} onError={() => setImgFailed(true)} />
-          : <span className="placeholder">&#128722;</span>}
+          : <span className="placeholder">olio</span>}
       </div>
       <div className="product-body">
         <div className="product-source">{product.source}</div>
