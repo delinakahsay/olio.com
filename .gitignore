@@ -1,0 +1,17 @@
+# Secrets
+.env
+.env.local
+
+# Local dev data (recreated automatically)
+data/
+
+# Dependencies & platform
+node_modules/
+.vercel/
+
+# OS / editor / AI tooling
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+.claude/
