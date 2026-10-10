@@ -2,12 +2,48 @@ const fs = require('fs').promises;
 const path = require('path');
 const crypto = require('crypto');
 
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_KEY;
+// Accept the project URL however it was pasted. A trailing slash, or the
+// /rest/v1 suffix copied from the Supabase dashboard, would otherwise produce
+// a doubled path and a 404 on every single query.
+function normalizeSupabaseUrl(raw) {
+  const value = String(raw || '').trim();
+  if (!value) return '';
+  return value.replace(/\/+$/, '').replace(/\/rest\/v1$/i, '');
+}
+
+const SUPABASE_URL = normalizeSupabaseUrl(process.env.SUPABASE_URL);
+const SUPABASE_KEY = String(process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_KEY || '').trim();
 const USE_SUPABASE = Boolean(SUPABASE_URL && SUPABASE_KEY);
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 const LOCAL_DB_FILE = path.resolve(__dirname, '../data/users.json');
-const PROD_LOCAL_DB_FILE = path.resolve('/tmp/olio-users.json');
-const DB_FILE = USE_SUPABASE ? null : (process.env.NODE_ENV === 'production' ? PROD_LOCAL_DB_FILE : LOCAL_DB_FILE);
+
+// In production there is no acceptable fallback. The old code quietly wrote
+// accounts to a file in /tmp, which Vercel discards between invocations, so a
+// misconfigured URL looked like "registration works, then you are mysteriously
+// signed out" instead of like an error. Silence cost weeks. Fail loudly.
+if (IS_PRODUCTION && !USE_SUPABASE) {
+  const missing = [
+    SUPABASE_URL ? null : 'SUPABASE_URL',
+    SUPABASE_KEY ? null : 'SUPABASE_SERVICE_KEY',
+  ].filter(Boolean);
+  console.error(
+    `FATAL: database is not configured. Missing or empty: ${missing.join(', ')}. ` +
+      'Refusing to fall back to ephemeral local storage in production.'
+  );
+}
+
+const DB_FILE = USE_SUPABASE ? null : LOCAL_DB_FILE;
+
+// Called at the top of every storage function. In production this converts a
+// silent data-loss bug into a visible 500 with a log line that names the cause.
+function assertConfigured() {
+  if (USE_SUPABASE) return;
+  if (IS_PRODUCTION) {
+    throw new Error(
+      'Database is not configured: SUPABASE_URL and SUPABASE_SERVICE_KEY must both be set.'
+    );
+  }
+}
 
 const SESSION_DAYS = 30;
 
@@ -130,6 +166,7 @@ function toRow(user) {
 }
 
 async function getUserByEmail(email) {
+  assertConfigured();
   const normalized = normalizeEmail(email);
   if (USE_SUPABASE) {
     const rows = await supabaseFetch(`users?email=eq.${encodeURIComponent(normalized)}&select=*&limit=1`);
@@ -140,6 +177,7 @@ async function getUserByEmail(email) {
 }
 
 async function createUser(user) {
+  assertConfigured();
   if (USE_SUPABASE) {
     const rows = await supabaseFetch('users?select=*', {
       method: 'POST',
@@ -155,6 +193,7 @@ async function createUser(user) {
 }
 
 async function updateUser(id, updates) {
+  assertConfigured();
   if (USE_SUPABASE) {
     const rows = await supabaseFetch(`users?id=eq.${encodeURIComponent(id)}&select=*`, {
       method: 'PATCH',
@@ -175,6 +214,7 @@ async function updateUser(id, updates) {
 // One row per signed-in device, so a new sign-in no longer evicts the old one.
 
 async function createSession(userId, userAgent) {
+  assertConfigured();
   const token = createToken();
   const record = {
     token_hash: hashToken(token),
@@ -195,6 +235,7 @@ async function createSession(userId, userAgent) {
 
 async function getUserByToken(token) {
   if (!token) return { user: null };
+  assertConfigured();
   const digest = hashToken(token);
 
   if (USE_SUPABASE) {
@@ -223,6 +264,7 @@ async function getUserByToken(token) {
 }
 
 async function deleteSession(token) {
+  assertConfigured();
   if (!token) return;
   const digest = hashToken(token);
   if (USE_SUPABASE) {
@@ -236,6 +278,7 @@ async function deleteSession(token) {
 
 // Used when a password changes: every other device should be signed out.
 async function deleteSessionsForUser(userId, exceptToken) {
+  assertConfigured();
   if (USE_SUPABASE) {
     const keep = exceptToken ? `&token_hash=neq.${encodeURIComponent(hashToken(exceptToken))}` : '';
     await supabaseFetch(`sessions?user_id=eq.${encodeURIComponent(userId)}${keep}`, { method: 'DELETE' });

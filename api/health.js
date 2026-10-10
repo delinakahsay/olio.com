@@ -27,7 +27,18 @@ module.exports = async function handler(req, res) {
     keyPresent: Boolean(key),
     keyLength: key.length,
     keyHasWhitespace: key !== key.trim(),
-    keyLooksLikeJwt: key.split('.').length === 3,
+    // The prefix is a type label, not the secret. Which type matters: a
+    // publishable key is subject to RLS and would return empty results from
+    // every query rather than an error, which looks exactly like an empty
+    // database. A secret or service_role key bypasses RLS, which is what the
+    // server needs.
+    keyKind: key.startsWith('sb_secret_')
+      ? 'secret (correct)'
+      : key.startsWith('sb_publishable_')
+        ? 'publishable (WRONG: subject to RLS, will read as empty)'
+        : key.split('.').length === 3
+          ? 'legacy jwt (check it is service_role, not anon)'
+          : 'unrecognized',
     nodeEnv: process.env.NODE_ENV || null,
   };
 
