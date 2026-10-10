@@ -299,6 +299,9 @@ export default function App() {
   }, [profile, token, accountOpen]);
   function signOut() {
     setSessionError("");
+    // Revoke the session server-side too, otherwise the row stays valid for
+    // its full 30 days and clearing localStorage only hides it.
+    api.logout(token);
     localStorage.removeItem("olioAuthToken");
     localStorage.removeItem("olio-session");
     setToken(null);

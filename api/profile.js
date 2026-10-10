@@ -3,6 +3,7 @@ const {
   updateUser,
   hashPassword,
   createSalt,
+  deleteSessionsForUser,
 } = require("./db");
 const crypto = require("crypto");
 
@@ -78,6 +79,8 @@ module.exports = async function handler(req, res) {
           salt,
           passwordHash: hashPassword(body.newPassword, salt),
         });
+        // Changing a password signs out every other device, keeping this one.
+        await deleteSessionsForUser(user.id, token);
         return res.status(200).json({ ok: true });
       }
 

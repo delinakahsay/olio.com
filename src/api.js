@@ -35,6 +35,20 @@ export function auth(payload) {
   }).then(parseJson);
 }
 
+// Tells the server to drop the session row. Fire and forget: a failure here
+// must never block the user from signing out on this device.
+export function logout(token) {
+  if (!token) return Promise.resolve();
+  return fetch("/api/auth", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: "Bearer " + token,
+    },
+    body: JSON.stringify({ action: "logout" }),
+  }).catch(() => {});
+}
+
 export function getProfile(token) {
   return fetch("/api/profile", {
     headers: { authorization: "Bearer " + token },

@@ -6,7 +6,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node --test tests/api.cjs",
+    "test": "node --test tests/api.cjs && node tests/auth.cjs",
     "test:browser": "node tests/browser.cjs"
   },
   "dependencies": {

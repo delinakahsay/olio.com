@@ -9,6 +9,8 @@ const LOCAL_DB_FILE = path.resolve(__dirname, '../data/users.json');
 const PROD_LOCAL_DB_FILE = path.resolve('/tmp/olio-users.json');
 const DB_FILE = USE_SUPABASE ? null : (process.env.NODE_ENV === 'production' ? PROD_LOCAL_DB_FILE : LOCAL_DB_FILE);
 
+const SESSION_DAYS = 30;
+
 async function ensureLocalDataPath() {
   if (!DB_FILE) return;
   await fs.mkdir(path.dirname(DB_FILE), { recursive: true });
@@ -18,11 +20,11 @@ async function readLocalDB() {
   await ensureLocalDataPath();
   try {
     const raw = await fs.readFile(DB_FILE, 'utf8');
-    return JSON.parse(raw);
+    const data = JSON.parse(raw);
+    if (!Array.isArray(data.sessions)) data.sessions = [];
+    return data;
   } catch (err) {
-    if (err.code === 'ENOENT') {
-      return { users: [] };
-    }
+    if (err.code === 'ENOENT') return { users: [], sessions: [] };
     throw err;
   }
 }
@@ -49,6 +51,30 @@ function createToken() {
   return crypto.randomBytes(32).toString('hex');
 }
 
+// The session table stores only this digest, so a leaked database cannot be
+// replayed as a login. The raw token exists in the client and nowhere else.
+function hashToken(token) {
+  return crypto.createHash('sha256').update(String(token)).digest('hex');
+}
+
+// Comparing hashes with !== leaks timing. Lengths are fixed here, but guard
+// anyway so a future change to the hash cannot quietly reintroduce the leak.
+function safeEqualHex(a, b) {
+  const bufA = Buffer.from(String(a || ''), 'utf8');
+  const bufB = Buffer.from(String(b || ''), 'utf8');
+  if (bufA.length !== bufB.length) return false;
+  return crypto.timingSafeEqual(bufA, bufB);
+}
+
+function verifyPassword(password, user) {
+  if (!user || !user.salt || !user.passwordHash) return false;
+  return safeEqualHex(hashPassword(password, user.salt), user.passwordHash);
+}
+
+function sessionExpiry() {
+  return new Date(Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000).toISOString();
+}
+
 async function supabaseFetch(endpoint, options = {}) {
   const url = `${SUPABASE_URL}/rest/v1/${endpoint}`;
   const headers = {
@@ -64,6 +90,7 @@ async function supabaseFetch(endpoint, options = {}) {
   if (!res.ok) {
     throw new Error(`Supabase error ${res.status}: ${text}`);
   }
+  if (!text) return null;
   try {
     return JSON.parse(text);
   } catch (err) {
@@ -71,98 +98,56 @@ async function supabaseFetch(endpoint, options = {}) {
   }
 }
 
-function normalizeSupabaseUser(row) {
+// Column names are snake_case in the database and camelCase in the app. These
+// two functions are the only place that knows both.
+function fromRow(row) {
   if (!row) return null;
   return {
-    id: row.id || row.ID || row.Id || null,
-    email: row.email || row.EMAIL || null,
-    name: row.name || row.NAME || row.display_name || row.displayName || '',
-    passwordHash: row.passwordHash || row.passwordhash || row.password_hash || null,
-    salt: row.salt || row.SALT || null,
-    token: row.token || row.TOKEN || null,
-    savedItems: row.savedItems || row.saveditems || row.saved_items || [],
-    cart: row.cart || row.CART || [],
-    orders: row.orders || row.ORDERS || row.order || row.orders || [],
-    createdAt: row.createdAt || row.createdat || row.created_at || null,
+    id: row.id || null,
+    email: row.email || null,
+    name: row.name || '',
+    passwordHash: row.password_hash || null,
+    salt: row.salt || null,
+    savedItems: row.saved_items || [],
+    cart: row.cart || [],
+    orders: row.orders || [],
+    createdAt: row.created_at || null,
   };
 }
 
-function supabasePayload(user) {
-  const payload = {};
-  if (user.id !== undefined) payload.id = user.id;
-  if (user.email !== undefined) payload.email = user.email;
-  if (user.name !== undefined) payload.name = user.name;
-  if (user.passwordHash !== undefined) payload.passwordhash = user.passwordHash;
-  if (user.salt !== undefined) payload.salt = user.salt;
-  if (user.token !== undefined) payload.token = user.token;
-  if (user.savedItems !== undefined) payload.saveditems = user.savedItems;
-  if (user.cart !== undefined) payload.cart = user.cart;
-  if (user.orders !== undefined) payload.orders = user.orders;
-  if (user.createdAt !== undefined) payload.createdat = user.createdAt;
-  return payload;
+function toRow(user) {
+  const row = {};
+  if (user.id !== undefined) row.id = user.id;
+  if (user.email !== undefined) row.email = user.email;
+  if (user.name !== undefined) row.name = user.name;
+  if (user.passwordHash !== undefined) row.password_hash = user.passwordHash;
+  if (user.salt !== undefined) row.salt = user.salt;
+  if (user.savedItems !== undefined) row.saved_items = user.savedItems;
+  if (user.cart !== undefined) row.cart = user.cart;
+  if (user.orders !== undefined) row.orders = user.orders;
+  if (user.createdAt !== undefined) row.created_at = user.createdAt;
+  return row;
 }
 
-async function supabaseGetUserByEmail(email) {
-  const rows = await supabaseFetch(`users?email=eq.${encodeURIComponent(email)}&select=*`, {
-    method: 'GET',
-  });
-  const row = Array.isArray(rows) ? rows[0] || null : null;
-  return normalizeSupabaseUser(row);
-}
-
-async function supabaseGetUserByToken(token) {
-  const rows = await supabaseFetch(`users?token=eq.${encodeURIComponent(token)}&select=*`, {
-    method: 'GET',
-  });
-  const row = Array.isArray(rows) ? rows[0] || null : null;
-  return normalizeSupabaseUser(row);
-}
-
-async function supabaseCreateUser(user) {
-  const payload = supabasePayload(user);
-  const rows = await supabaseFetch('users?select=*', {
-    method: 'POST',
-    headers: { Prefer: 'return=representation' },
-    body: JSON.stringify(payload),
-  });
-  const row = Array.isArray(rows) ? rows[0] || null : null;
-  return normalizeSupabaseUser(row);
-}
-
-async function supabaseUpdateUser(id, updates) {
-  const payload = supabasePayload(updates);
-  const rows = await supabaseFetch(`users?id=eq.${encodeURIComponent(id)}&select=*`, {
-    method: 'PATCH',
-    headers: { Prefer: 'return=representation' },
-    body: JSON.stringify(payload),
-  });
-  const row = Array.isArray(rows) ? rows[0] || null : null;
-  return normalizeSupabaseUser(row);
-}
 async function getUserByEmail(email) {
+  const normalized = normalizeEmail(email);
   if (USE_SUPABASE) {
-    return supabaseGetUserByEmail(normalizeEmail(email));
+    const rows = await supabaseFetch(`users?email=eq.${encodeURIComponent(normalized)}&select=*&limit=1`);
+    return fromRow(Array.isArray(rows) ? rows[0] : null);
   }
-
   const db = await readLocalDB();
-  return db.users.find((u) => u.email === normalizeEmail(email)) || null;
-}
-
-async function getUserByToken(token) {
-  if (USE_SUPABASE) {
-    return { user: await supabaseGetUserByToken(token) };
-  }
-
-  const db = await readLocalDB();
-  const user = db.users.find((u) => u.token === token) || null;
-  return { db, user };
+  return db.users.find((u) => u.email === normalized) || null;
 }
 
 async function createUser(user) {
   if (USE_SUPABASE) {
-    return supabaseCreateUser(user);
+    const rows = await supabaseFetch('users?select=*', {
+      method: 'POST',
+      headers: { Prefer: 'return=representation' },
+      body: JSON.stringify(toRow(user)),
+    });
+    return fromRow(Array.isArray(rows) ? rows[0] : null);
   }
-
   const db = await readLocalDB();
   db.users.push(user);
   await writeLocalDB(db);
@@ -171,27 +156,110 @@ async function createUser(user) {
 
 async function updateUser(id, updates) {
   if (USE_SUPABASE) {
-    return supabaseUpdateUser(id, updates);
+    const rows = await supabaseFetch(`users?id=eq.${encodeURIComponent(id)}&select=*`, {
+      method: 'PATCH',
+      headers: { Prefer: 'return=representation' },
+      body: JSON.stringify(toRow(updates)),
+    });
+    return fromRow(Array.isArray(rows) ? rows[0] : null);
   }
-
   const db = await readLocalDB();
   const idx = db.users.findIndex((u) => u.id === id);
-  if (idx === -1) {
-    return null;
-  }
+  if (idx === -1) return null;
   db.users[idx] = { ...db.users[idx], ...updates };
   await writeLocalDB(db);
   return db.users[idx];
+}
+
+// --- sessions --------------------------------------------------------------
+// One row per signed-in device, so a new sign-in no longer evicts the old one.
+
+async function createSession(userId, userAgent) {
+  const token = createToken();
+  const record = {
+    token_hash: hashToken(token),
+    user_id: userId,
+    user_agent: String(userAgent || '').slice(0, 300) || null,
+    expires_at: sessionExpiry(),
+  };
+
+  if (USE_SUPABASE) {
+    await supabaseFetch('sessions', { method: 'POST', body: JSON.stringify(record) });
+  } else {
+    const db = await readLocalDB();
+    db.sessions.push({ ...record, created_at: new Date().toISOString() });
+    await writeLocalDB(db);
+  }
+  return token;
+}
+
+async function getUserByToken(token) {
+  if (!token) return { user: null };
+  const digest = hashToken(token);
+
+  if (USE_SUPABASE) {
+    // One round trip: the foreign key lets PostgREST embed the user row.
+    const rows = await supabaseFetch(
+      `sessions?token_hash=eq.${encodeURIComponent(digest)}&select=expires_at,users(*)&limit=1`
+    );
+    const row = Array.isArray(rows) ? rows[0] : null;
+    if (!row) return { user: null };
+    if (row.expires_at && new Date(row.expires_at) < new Date()) {
+      await deleteSession(token);
+      return { user: null };
+    }
+    return { user: fromRow(row.users) };
+  }
+
+  const db = await readLocalDB();
+  const session = db.sessions.find((s) => s.token_hash === digest) || null;
+  if (!session) return { db, user: null };
+  if (session.expires_at && new Date(session.expires_at) < new Date()) {
+    db.sessions = db.sessions.filter((s) => s.token_hash !== digest);
+    await writeLocalDB(db);
+    return { db, user: null };
+  }
+  return { db, user: db.users.find((u) => u.id === session.user_id) || null };
+}
+
+async function deleteSession(token) {
+  if (!token) return;
+  const digest = hashToken(token);
+  if (USE_SUPABASE) {
+    await supabaseFetch(`sessions?token_hash=eq.${encodeURIComponent(digest)}`, { method: 'DELETE' });
+    return;
+  }
+  const db = await readLocalDB();
+  db.sessions = db.sessions.filter((s) => s.token_hash !== digest);
+  await writeLocalDB(db);
+}
+
+// Used when a password changes: every other device should be signed out.
+async function deleteSessionsForUser(userId, exceptToken) {
+  if (USE_SUPABASE) {
+    const keep = exceptToken ? `&token_hash=neq.${encodeURIComponent(hashToken(exceptToken))}` : '';
+    await supabaseFetch(`sessions?user_id=eq.${encodeURIComponent(userId)}${keep}`, { method: 'DELETE' });
+    return;
+  }
+  const db = await readLocalDB();
+  const keepHash = exceptToken ? hashToken(exceptToken) : null;
+  db.sessions = db.sessions.filter((s) => s.user_id !== userId || s.token_hash === keepHash);
+  await writeLocalDB(db);
 }
 
 module.exports = {
   USE_SUPABASE,
   normalizeEmail,
   hashPassword,
+  verifyPassword,
   createSalt,
   createToken,
+  hashToken,
   getUserByEmail,
   getUserByToken,
   createUser,
   updateUser,
+  createSession,
+  deleteSession,
+  deleteSessionsForUser,
 };
