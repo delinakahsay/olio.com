@@ -1,59 +1,150 @@
-import { useState } from 'react';
-import * as api from '../api.js';
-
+import { useEffect, useRef, useState } from "react";
+import * as api from "../api.js";
 export default function AccountModal({ onClose, onAuthed }) {
-  const [mode, setMode] = useState('login');
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [status, setStatus] = useState(null); // { msg, ok }
-
-  async function submit() {
-    if (!email.trim() || !password.trim()) {
-      setStatus({ msg: 'Email and password are required.', ok: false });
-      return;
-    }
+  const [mode, setMode] = useState("login"),
+    [name, setName] = useState(""),
+    [email, setEmail] = useState(""),
+    [password, setPassword] = useState(""),
+    [status, setStatus] = useState(""),
+    [busy, setBusy] = useState(false);
+  const dialog = useRef(null);
+  useEffect(() => {
+    const previous = document.activeElement;
+    dialog.current?.querySelector("input")?.focus();
+    const key = (e) => {
+      if (e.key === "Escape") onClose();
+      if (e.key === "Tab") {
+        const elements = dialog.current.querySelectorAll(
+          "button:not(:disabled),input",
+        );
+        const first = elements[0],
+          last = elements[elements.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    };
+    document.addEventListener("keydown", key);
+    return () => {
+      document.removeEventListener("keydown", key);
+      previous?.focus();
+    };
+  }, []);
+  async function submit(e) {
+    e.preventDefault();
+    if (busy) return;
+    setBusy(true);
+    setStatus("");
     try {
-      const payload = { action: mode, email: email.trim(), password: password.trim() };
-      if (mode === 'register') payload.name = name.trim();
-      const data = await api.auth(payload);
-      setStatus({ msg: 'Signed in successfully!', ok: true });
+      const data = await api.auth({
+        action: mode,
+        email: email.trim(),
+        password,
+        ...(mode === "register" ? { name: name.trim() } : {}),
+      });
       onAuthed(data);
     } catch (err) {
-      setStatus({ msg: err.message, ok: false });
+      setStatus(err.message);
+    } finally {
+      setBusy(false);
     }
   }
-
   return (
-    <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="modal">
+    <div
+      className="modal-overlay"
+      onClick={(e) => {
+        if (e.target === e.currentTarget && !busy) onClose();
+      }}
+    >
+      <section
+        className="modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="account-title"
+        ref={dialog}
+      >
         <div className="modal-header">
-          <div className="modal-title">Account</div>
-          <button className="modal-close" onClick={onClose}>&times;</button>
+          <h2 id="account-title" className="modal-title">
+            Your Olio account
+          </h2>
+          <button
+            className="modal-close"
+            aria-label="Close account dialog"
+            onClick={onClose}
+          >
+            ×
+          </button>
         </div>
-        <div className="modal-body">
-          <div className="account-steps">
-            <button className={'account-step' + (mode === 'login' ? ' active' : '')} onClick={() => { setMode('login'); setStatus(null); }}>Login</button>
-            <button className={'account-step' + (mode === 'register' ? ' active' : '')} onClick={() => { setMode('register'); setStatus(null); }}>Register</button>
-          </div>
-          <div className="account-form">
-            {mode === 'register' && (
-              <>
-                <label>Name</label>
-                <input type="text" placeholder="Your name" value={name} onChange={(e) => setName(e.target.value)} />
-              </>
-            )}
-            <label>Email</label>
-            <input type="email" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />
-            <label>Password</label>
-            <input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') submit(); }} />
-            <button className="account-submit" onClick={submit}>{mode === 'login' ? 'Login' : 'Register'}</button>
-          </div>
-          <div className="account-status" style={{ color: status ? (status.ok ? 'var(--green)' : '#ec5f5c') : undefined }}>
-            {status?.msg || ''}
-          </div>
+        <div className="account-steps">
+          {["login", "register"].map((m) => (
+            <button
+              key={m}
+              className={"account-step" + (mode === m ? " active" : "")}
+              aria-pressed={mode === m}
+              onClick={() => {
+                setMode(m);
+                setStatus("");
+              }}
+            >
+              {m === "login" ? "Sign in" : "Create account"}
+            </button>
+          ))}
         </div>
-      </div>
+        <form className="account-form" onSubmit={submit}>
+          {mode === "register" && (
+            <label>
+              Name
+              <input
+                required
+                autoComplete="name"
+                maxLength={80}
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+              />
+            </label>
+          )}
+          <label>
+            Email
+            <input
+              required
+              type="email"
+              autoComplete="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+          </label>
+          <label>
+            Password
+            <input
+              required
+              type="password"
+              autoComplete={
+                mode === "login" ? "current-password" : "new-password"
+              }
+              minLength={mode === "register" ? 8 : undefined}
+              maxLength={200}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </label>
+          <button className="account-submit" disabled={busy}>
+            {busy
+              ? "One moment…"
+              : mode === "login"
+                ? "Sign in"
+                : "Create account"}
+          </button>
+          {status && (
+            <p role="alert" className="account-status">
+              {status}
+            </p>
+          )}
+        </form>
+      </section>
     </div>
   );
 }

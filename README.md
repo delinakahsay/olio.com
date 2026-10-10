@@ -1,43 +1,63 @@
 # Olio
 
-**AI shopping assistant: describe what you want in plain language, get real products back.** Olio turns a natural-language request into live Google Shopping results, with an AI-written shopping tip, saved items, and a demo checkout.
+A conversational shopping app. Describe a product, refine your request, explore live listings, and save your finds.
 
-## How it works
+## Experience
 
-1. **Search.** The browser posts your query to a serverless function ([api/search.js](api/search.js)), which queries **SerpAPI** (Google Shopping) and normalizes the top results into product cards: title, price, seller, link, thumbnail.
-2. **Stable product IDs.** Each product's ID is a hash of its link, not its position in the results, so saved items and cart entries still match after new searches or logging back in.
-3. **AI summary.** If an OpenAI key is configured, **GPT-4o-mini** writes a two-sentence shopping tip specific to your query and the top results. The search still works without it.
-4. **Accounts.** Register/login ([api/auth.js](api/auth.js)) with scrypt-hashed, salted passwords and bearer-token sessions. Signed-in users can save items and run a simulated checkout that records orders to their profile ([api/profile.js](api/profile.js)).
-5. **Storage.** [api/db.js](api/db.js) uses **Supabase** (via its REST API) when `SUPABASE_URL`/`SUPABASE_SERVICE_KEY` are set, and falls back to a local JSON file for development. The schema is in [docs/supabase.sql](docs/supabase.sql).
+- Chat and shortlist stay side by side on desktop and stack on mobile.
+- Lora serif gives Olio's headings and replies their voice. DM Sans keeps controls and product details readable.
+- Discover uses original generated editorial imagery to start real searches. Inspiration images are not purchasable product listings.
+- Saved supports browser-local collections and a side-by-side comparison of selected products. Signed-in saved products retain the existing server synchronization.
+- Account includes profile, appearance, preferences, history, feedback controls, privacy/data export, password changes, and help.
+- Appearance includes wine, forest, midnight, and clay accents, light/dark/system modes, larger text, and reduced motion.
+- Clicked history and explicitly marked purchases are separate. Opening a retailer does not create a purchase record. The legacy cart remains reachable from Account.
 
-## Tech stack
+## Storage
 
-- **Frontend:** React 19 + Vite ([src/](src/)), component-based UI with hooks for search, cart, saved items, and auth state
-- **Backend:** Node.js serverless functions (Vercel-style `api/` directory)
-- **APIs:** SerpAPI (product search), OpenAI `gpt-4o-mini` (summaries, optional)
-- **Storage:** Supabase (production) or local JSON (development)
+| Data | Storage |
+|---|---|
+| Account name, email, password hash, signed-in saved products, legacy cart/orders | Existing Supabase user record |
+| Guest saved products | This browser |
+| Appearance, preferences, collections, clicked/bought history, conversation history | This browser, separated by signed-in email or guest |
 
-## Run it locally
+No database migration is required. Existing legacy order records are retained and included in the account data export, but are not represented as verified purchases. Email changes, account deletion, price alerts, and cross-device history sync are not implemented. The interface does not advertise these capabilities.
 
-Requires the [Vercel CLI](https://vercel.com/docs/cli) to serve the React app and `api/` functions together.
+History is capped at 200 products and 30 conversations. Clearing browser data does not delete your account or server-saved products. Signing out returns to the separate guest profile. Storage can be cleared by browser settings.
 
-```bash
-npm install
-npm install -g vercel
-vercel dev
+## Search
+
+`api/search.js` interprets the latest request in the context of up to eight earlier user requests. The model extracts search terms and constraints, SerpAPI supplies product listings, and an optional model pass ranks the results. Model failures fall back independently. Explicit numeric budgets are never silently discarded to fill a grid. Products with unknown prices still require verification at the retailer.
+
+The frontend sends follow-up context and retains the visible conversation. This is a shopping search conversation, not a general-purpose chatbot. Each message starts a search; the app does not fabricate clarifying model replies before a search.
+
+## Development
+
+```sh
+npm ci
+npm run dev -- --host 127.0.0.1
+npm run build
+npm test
 ```
 
-Set environment variables (in a `.env.local` or the Vercel dashboard):
+Vite alone serves the frontend. Use `vercel dev` for frontend and serverless endpoints together. Configure these in `.env.local` or Vercel, never in browser code:
 
-| Variable | Required | Purpose |
-|---|---|---|
-| `SERP_API_KEY` | Yes | Product search via SerpAPI |
-| `OPENAI_API_KEY` | No | AI shopping-tip summaries |
-| `SUPABASE_URL` + `SUPABASE_SERVICE_KEY` | No | Persistent user storage; falls back to local JSON without them |
+- `SERP_API_KEY`: required for product search
+- `OPENAI_API_KEY`: optional for interpretation and ranking
+- `SUPABASE_URL` and `SUPABASE_SERVICE_KEY`: persistent account storage
 
-## Limitations / future improvements
+Without Supabase, `api/db.js` uses local JSON for development. Its production `/tmp` fallback is ephemeral and is not durable account storage. Existing authentication uses a single bearer token per user without expiry. This redesign does not replace it with a managed authentication service.
 
-- **Checkout is simulated.** "Purchases" are recorded to the user's profile; no payment processing.
-- **Sessions are simple.** One token per user, no expiry or refresh; fine for a demo, not production auth.
-- **Search quality depends on SerpAPI.** Results mirror Google Shopping, including its occasional odd matches.
-- **Next steps.** Price tracking on saved items, comparison view across sellers, and moving auth to a managed provider.
+## Verification
+
+```sh
+npm test
+npx playwright install firefox
+# In another terminal, run the frontend on port 5173 first.
+npm run test:browser
+```
+
+API tests stub upstream services and cover contextual follow-ups, stable product IDs, budget filtering, model fallbacks, safe upstream errors, and authenticated profile/password changes. Browser tests stub search results and cover saved products, collections, comparison, history, appearance persistence, and responsive routes. Real provider credentials are needed to verify live search and Supabase on a deployment.
+
+## Design assets
+
+`public/images/discover-editorial.webp` is original generated editorial artwork, not a retailer product image. Result photography comes from actual search results. `public/favicon.svg` is the wine-and-ivory Olio lettermark.
