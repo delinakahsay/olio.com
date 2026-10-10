@@ -1,35 +1,55 @@
-import { useState } from 'react';
-import { isValidHttpUrl, fallbackSearchLink } from '../utils.js';
-
-export default function ProductCard({ product, inCart, isSaved, onToggleCart, onToggleSave }) {
-  const [imgFailed, setImgFailed] = useState(false);
-  const link = isValidHttpUrl(product.link) ? product.link : fallbackSearchLink(product.title);
-  const showImg = isValidHttpUrl(product.thumbnail) && !imgFailed;
-
+import { useState } from "react";
+import { isValidHttpUrl, fallbackSearchLink } from "../utils.js";
+import Icon from "./Icon.jsx";
+export default function ProductCard({
+  product,
+  isSaved,
+  onToggleSave,
+  onVisit,
+  collectionControl,
+}) {
+  const [failed, setFailed] = useState(false);
+  const link = isValidHttpUrl(product.link)
+    ? product.link
+    : fallbackSearchLink(product.title);
   return (
-    <div className="product-card">
-      <div className="product-img-wrap">
-        {showImg
-          ? <img src={product.thumbnail} alt={product.title} onError={() => setImgFailed(true)} />
-          : <span className="placeholder">olio</span>}
+    <article className="product-card">
+      <div className="product-photo">
+        {isValidHttpUrl(product.thumbnail) && !failed ? (
+          <img
+            loading="lazy"
+            src={product.thumbnail}
+            alt={product.title}
+            onError={() => setFailed(true)}
+          />
+        ) : (
+          <span className="photo-fallback">olio</span>
+        )}
+        <button
+          className={"save-icon" + (isSaved ? " selected" : "")}
+          aria-label={`${isSaved ? "Unsave" : "Save"} ${product.title}`}
+          aria-pressed={!!isSaved}
+          onClick={() => onToggleSave(product)}
+        >
+          <Icon name="bookmark" fill={isSaved ? "currentColor" : "none"} />
+        </button>
       </div>
-      <div className="product-body">
-        <div className="product-source">{product.source}</div>
-        <div className="product-title">{product.title}</div>
-        {product.price && <div className="product-price">{product.price}</div>}
-        {product.why
-          ? <div className="product-why">{product.why}</div>
-          : <div className="product-snippet">{product.snippet}</div>}
-        <div className="product-actions">
-          <button className={'btn-cart' + (inCart ? ' in-cart' : '')} onClick={onToggleCart}>
-            {inCart ? 'Added' : '+ Cart'}
-          </button>
-          <button className={'btn-save' + (isSaved ? ' saved' : '')} onClick={onToggleSave}>
-            {isSaved ? '♥' : '♡'}
-          </button>
-          <a className="btn-link" href={link} target="_blank" rel="noopener noreferrer">Shop</a>
-        </div>
+      <div className="product-info">
+        <p className="retailer">{product.source}</p>
+        <h3>{product.title}</h3>
+        <p className="price">{product.price || "Check retailer for price"}</p>
+        {product.why && <p className="product-why">{product.why}</p>}
+        <a
+          className="retailer-link"
+          href={link}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={() => onVisit(product)}
+        >
+          View at retailer <Icon name="arrow" />
+        </a>
+        {collectionControl}
       </div>
-    </div>
+    </article>
   );
 }

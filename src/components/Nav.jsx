@@ -1,19 +1,94 @@
-export default function Nav({ cartCount, profile, onOpenPanel, onOpenAccount }) {
-  const accountLabel = profile
-    ? (profile.name ? 'Hi, ' + profile.name.split(' ')[0] : 'My Profile')
-    : 'Account';
+import { useEffect, useRef, useState } from "react";
+import Icon from "./Icon.jsx";
+export default function Nav({
+  page,
+  go,
+  profile,
+  onSignIn,
+  onSignOut,
+  cartCount,
+}) {
+  const [open, setOpen] = useState(false);
+  const root = useRef(null);
+  useEffect(() => {
+    function dismiss(e) {
+      if (
+        e.key === "Escape" ||
+        (e.type === "pointerdown" && !root.current?.contains(e.target))
+      )
+        setOpen(false);
+    }
+    document.addEventListener("pointerdown", dismiss);
+    document.addEventListener("keydown", dismiss);
+    return () => {
+      document.removeEventListener("pointerdown", dismiss);
+      document.removeEventListener("keydown", dismiss);
+    };
+  }, []);
+  const link = (route, label) => (
+    <a
+      href={"#/" + route}
+      aria-current={page === route ? "page" : undefined}
+      onClick={() => setOpen(false)}
+    >
+      {label}
+    </a>
+  );
   return (
-    <nav>
-      <div className="nav-logo" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
-        oli<span>o</span>
-      </div>
-      <div className="nav-right">
-        <button className="nav-btn" onClick={() => onOpenPanel('saved')}>Saved</button>
-        <button className="nav-btn" onClick={() => onOpenPanel('cart')}>
-          Cart <span className={'cart-count' + (cartCount ? ' visible' : '')}>{cartCount}</span>
-        </button>
-        <button className="nav-btn" onClick={onOpenAccount}>{accountLabel}</button>
-      </div>
-    </nav>
+    <header className="site-header">
+      <a className="wordmark" href="#/chat" aria-label="Olio home">
+        olio
+      </a>
+      <nav aria-label="Main">
+        {link("discover", "Discover")}
+        {link("about", "About")}
+      </nav>
+      <nav className="nav-end" aria-label="Personal">
+        {profile ? (
+          link("saved", "Saved")
+        ) : (
+          <button className="primary signup-button" onClick={onSignIn}>
+            Create account
+          </button>
+        )}
+        <div className="account-menu" ref={root}>
+          <button
+            className="text-button"
+            aria-expanded={open}
+            onClick={() => setOpen(!open)}
+          >
+            Account <Icon name="chevron" />
+          </button>
+          {open && (
+            <div className="menu-popover">
+              {link("account/profile", "Profile")}
+              {link("account/appearance", "Settings")}
+              {link("account/history", "Shopping history")}
+              {link("cart", `Cart${cartCount ? ` (${cartCount})` : ""}`)}
+              <hr />
+              {profile ? (
+                <button
+                  onClick={() => {
+                    setOpen(false);
+                    onSignOut();
+                  }}
+                >
+                  Sign out
+                </button>
+              ) : (
+                <button
+                  onClick={() => {
+                    setOpen(false);
+                    onSignIn();
+                  }}
+                >
+                  Sign in / Create account
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      </nav>
+    </header>
   );
 }

@@ -1,215 +1,625 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import * as api from './api.js';
-import Nav from './components/Nav.jsx';
-import Hero from './components/Hero.jsx';
-import ResultsSection from './components/ResultsSection.jsx';
-import SidePanel from './components/SidePanel.jsx';
-import AccountModal from './components/AccountModal.jsx';
-import ProfileModal from './components/ProfileModal.jsx';
-import Toast from './components/Toast.jsx';
-import { isValidHttpUrl, fallbackSearchLink } from './utils.js';
+import { useCallback, useEffect, useRef, useState } from "react";
+import * as api from "./api.js";
+import Nav from "./components/Nav.jsx";
+import Chat from "./components/Chat.jsx";
+import Discover from "./components/Discover.jsx";
+import Saved from "./components/Saved.jsx";
+import Account, { appearanceDefaults } from "./components/Account.jsx";
+import AccountModal from "./components/AccountModal.jsx";
+import Toast from "./components/Toast.jsx";
+import Icon from "./components/Icon.jsx";
+import { useLocal, readLocal } from "./hooks/useLocal.js";
+import { isValidHttpUrl, fallbackSearchLink } from "./utils.js";
 
+const getRoute = () => window.location.hash.replace(/^#\/?/, "") || "chat";
 export default function App() {
-  const [token, setToken] = useState(() => localStorage.getItem('olioAuthToken'));
+  const [page, setPage] = useState(getRoute);
+  const [token, setToken] = useState(
+    () =>
+      readLocal("olio-session", null) || localStorage.getItem("olioAuthToken"),
+  );
   const [profile, setProfile] = useState(null);
+  const [sessionLoading, setSessionLoading] = useState(!!token);
+  const [sessionError, setSessionError] = useState("");
+  const [serverSaved, setServerSaved] = useState([]);
   const [cart, setCart] = useState([]);
-  const [saved, setSaved] = useState([]);
-
-  const [results, setResults] = useState([]);
-  const [summary, setSummary] = useState('');
-  const [reading, setReading] = useState(null);
-  const [searchState, setSearchState] = useState('idle'); // idle | loading | done | error
-  const [searchError, setSearchError] = useState('');
-  const [lastQuery, setLastQuery] = useState('');
-  const [sort, setSort] = useState('relevance');
-
-  const [panel, setPanel] = useState(null); // null | 'cart' | 'saved'
   const [accountOpen, setAccountOpen] = useState(false);
-  const [profileOpen, setProfileOpen] = useState(false);
-
-  const [toast, setToast] = useState('');
-  const toastTimer = useRef(null);
-  const resultsRef = useRef(null);
-
-  const showToast = useCallback((msg) => {
-    setToast(msg);
-    clearTimeout(toastTimer.current);
-    toastTimer.current = setTimeout(() => setToast(''), 2200);
-  }, []);
-
-  // Restore the session on load: a stale token is cleared silently.
-  useEffect(() => {
-    if (!token) return;
-    api.getProfile(token).then((data) => {
-      setProfile(data);
-      setSaved(data.savedItems || []);
-      setCart(data.cart || []);
-    }).catch(() => {
-      localStorage.removeItem('olioAuthToken');
-      setToken(null);
-      setProfile(null);
-    });
-  }, [token]);
-
+  const pendingSearch = useRef(null);
+  const scope = "olio:v2:" + (profile?.email || "guest") + ":";
+  const [guestSaved, setGuestSaved] = useLocal("olio:v2:guest:saved", []);
+  const [personal, setPersonal] = useLocal(scope + "personal", {});
+  const [appearance, setAppearance] = useLocal(
+    scope + "appearance",
+    appearanceDefaults,
+  );
+  const [preferences, setPreferences] = useLocal(scope + "preferences", {});
+  const [collections, setCollections] = useLocal(scope + "collections", {
+    names: [],
+    assignments: {},
+  });
+  const [history, setHistory] = useLocal(scope + "history", []);
+  const [conversations, setConversations] = useLocal(
+    scope + "conversations",
+    [],
+  );
+  const [trackHistory, setTrackHistory] = useLocal(
+    scope + "trackHistory",
+    true,
+  );
+  const [showFeedback, setShowFeedback] = useLocal(
+    scope + "showFeedback",
+    true,
+  );
+  const saved = profile ? serverSaved : guestSaved;
+  const [messages, setMessages] = useState([]);
+  const [results, setResults] = useState([]);
+  const [reading, setReading] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const conversationId = useRef(null);
+  const requestId = useRef(0);
   const lastParams = useRef({});
-
-  async function doSearch({ query, category, priceMin, priceMax }) {
-    if (!query) {
-      showToast('Type what you are looking for');
+  const saving = useRef(new Set());
+  const [toast, setToast] = useState("");
+  const toastTimer = useRef(null);
+  const notify = useCallback(
+    (message, important = false) => {
+      if (!showFeedback && !important) return;
+      setToast(message);
+      clearTimeout(toastTimer.current);
+      toastTimer.current = setTimeout(
+        () => setToast(""),
+        important ? 6500 : 3000,
+      );
+    },
+    [showFeedback],
+  );
+  const sessionRef = useRef(token);
+  sessionRef.current = token;
+  function go(route) {
+    window.location.hash = "/" + route;
+  }
+  useEffect(() => {
+    const changed = () => {
+      setPage(getRoute());
+      window.scrollTo(0, 0);
+    };
+    window.addEventListener("hashchange", changed);
+    return () => window.removeEventListener("hashchange", changed);
+  }, []);
+  useEffect(() => {
+    if (!token) {
+      setSessionLoading(false);
       return;
     }
-    // The price bounds travel as numbers now, so the server can filter on them
-    // instead of hoping a shopping index reads "max price $80" as a budget.
-    lastParams.current = { query, category, priceMin, priceMax };
-
-    setLastQuery(query);
-    setSearchState('loading');
+    let current = true;
+    setSessionLoading(true);
+    setSessionError("");
+    api
+      .getProfile(token)
+      .then((data) => {
+        if (current) {
+          setProfile(data);
+          setServerSaved([...(data.savedItems || [])].reverse());
+          setCart(data.cart || []);
+        }
+      })
+      .catch((err) => {
+        if (!current) return;
+        if (err.status === 401) {
+          localStorage.removeItem("olioAuthToken");
+          localStorage.removeItem("olio-session");
+          setToken(null);
+          setProfile(null);
+        } else
+          setSessionError(
+            "Could not load your account. Please reload to try again.",
+          );
+      })
+      .finally(() => {
+        if (current) setSessionLoading(false);
+      });
+    return () => {
+      current = false;
+    };
+  }, [token]);
+  useEffect(() => {
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    function apply() {
+      document.documentElement.dataset.mode =
+        appearance.mode === "system"
+          ? media.matches
+            ? "dark"
+            : "light"
+          : appearance.mode;
+    }
+    apply();
+    media.addEventListener("change", apply);
+    document.documentElement.dataset.palette = appearance.palette;
+    document.documentElement.dataset.text = appearance.text;
+    document.documentElement.dataset.motion = appearance.reduceMotion
+      ? "reduced"
+      : "normal";
+    return () => media.removeEventListener("change", apply);
+  }, [appearance]);
+  useEffect(() => () => clearTimeout(toastTimer.current), []);
+  function reset() {
+    ++requestId.current;
+    setLoading(false);
+    setMessages([]);
     setResults([]);
-    setSummary('');
     setReading(null);
-    setSort('relevance');
-    setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+    setError("");
+    conversationId.current = null;
+    lastParams.current = {};
+  }
+  async function send(text, options = {}) {
+    if (!text?.trim() || loading) return;
+    if (!profile || !token) {
+      pendingSearch.current = { text, options };
+      setAccountOpen(true);
+      return;
+    }
+    go("chat");
+    const id = ++requestId.current;
+    const previous = options.fresh ? [] : messages;
+    const next = options.retry
+      ? previous
+      : [...previous, { role: "user", text: text.trim() }];
+    if (options.fresh || !conversationId.current)
+      conversationId.current = crypto.randomUUID();
+    const cid = conversationId.current;
+    const params = {
+      ...(options.fresh ? preferences : lastParams.current),
+      ...options,
+    };
+    // Settings use budget, the search API uses priceMax.
+    const priceMax =
+      params.priceMax ?? params.budget ?? preferences.budget ?? "";
+    lastParams.current = {
+      category: params.category ?? preferences.category ?? "",
+      priceMax,
+    };
+    setMessages(next);
+    setLoading(true);
+    setError("");
+    setReading(null);
     try {
-      const data = await api.search({ query, category, priceMin, priceMax });
-      setResults(data.products || []);
-      setSummary(data.summary || '');
+      const data = await api.search(
+        {
+          query: text.trim(),
+          ...lastParams.current,
+          messages: next
+            .filter((m) => m.role === "user")
+            .slice(0, -1)
+            .slice(-8)
+            .map((m) => m.text),
+        },
+        token,
+      );
+      if (id !== requestId.current) return;
+      const products = data.products || [];
+      const response =
+        data.summary ||
+        (products.length
+          ? `I found ${products.length} options to explore. Tell me what you’d like to change.`
+          : "I couldn’t find a match this time. Try a broader description or a different budget.");
+      const complete = [...next, { role: "assistant", text: response }];
+      setResults(products);
       setReading(data.reading || null);
-      setSearchState('done');
+      setMessages(complete);
+      setConversations((rows) =>
+        [
+          {
+            id: cid,
+            title: complete.find((m) => m.role === "user")?.text || text,
+            at: new Date().toISOString(),
+            messages: complete.slice(-40),
+            results: products,
+            reading: data.reading || null,
+            params: lastParams.current,
+          },
+          ...rows.filter((c) => c.id !== cid),
+        ].slice(0, 30),
+      );
     } catch (err) {
-      setSearchError(err.message);
-      setSearchState('error');
+      if (id === requestId.current) {
+        if (err.status === 401) {
+          pendingSearch.current = {
+            text,
+            options: { ...options, retry: true },
+          };
+          setAccountOpen(true);
+        }
+        setError(err.message);
+        setResults([]);
+      }
+    } finally {
+      if (id === requestId.current) setLoading(false);
     }
   }
-
-  // Narrowing re-runs the search with the extra words folded into the request,
-  // so the shopper steers the result set without retyping the whole sentence.
-  function refine(label) {
-    const base = lastParams.current.query || lastQuery;
-    if (!base) return;
-    doSearch({ ...lastParams.current, query: `${base}, ${label.toLowerCase()}` });
-  }
-
-  function persistCart(nextCart) {
-    if (!profile || !token) return;
-    api.profileAction(token, 'saveCart', { cart: nextCart }).catch(() => {});
-  }
-
-  function toggleCart(item) {
-    const inCart = cart.some((c) => c.id === item.id);
-    const next = inCart ? cart.filter((c) => c.id !== item.id) : [...cart, item];
-    setCart(next);
-    showToast(inCart ? 'Removed from cart' : 'Added to cart!');
-    persistCart(next);
-  }
-
-  function toggleSave(item) {
-    const isSaved = saved.some((s) => s.id === item.id);
-    const next = isSaved ? saved.filter((s) => s.id !== item.id) : [...saved, item];
-    setSaved(next);
-    if (profile && token) {
-      api.profileAction(token, isSaved ? 'removeItem' : 'saveItem', isSaved ? { itemId: item.id } : { item }).catch(() => {});
-      showToast(isSaved ? 'Removed' : 'Saved!');
-    } else {
-      showToast(isSaved ? 'Removed' : 'Saved! Log in to keep it across devices');
+  async function toggleSave(product) {
+    if (saving.current.size) {
+      notify("Finishing your previous save. Please try again.");
+      return;
+    }
+    const isSaved = saved.some((p) => p.id === product.id);
+    if (!profile) {
+      setAccountOpen(true);
+      return;
+    }
+    const owner = token;
+    saving.current.add(product.id);
+    try {
+      const data = await api.profileAction(
+        token,
+        isSaved ? "removeItem" : "saveItem",
+        isSaved ? { itemId: product.id } : { item: product },
+      );
+      if (sessionRef.current === owner) {
+        setServerSaved([...(data.savedItems || [])].reverse());
+        notify(isSaved ? "Removed from saved" : "Saved to your account");
+      }
+    } catch (err) {
+      notify("Could not update saved items. Please try again.", true);
+    } finally {
+      saving.current.delete(product.id);
     }
   }
-
-  function handleAuthed(data) {
-    localStorage.setItem('olioAuthToken', data.token);
+  function visit(product) {
+    if (!trackHistory) return;
+    setHistory((rows) =>
+      [
+        {
+          ...product,
+          clickedAt: new Date().toISOString(),
+          bought: rows.find((r) => r.id === product.id)?.bought || false,
+          boughtAt: rows.find((r) => r.id === product.id)?.boughtAt || null,
+        },
+        ...rows.filter((r) => r.id !== product.id),
+      ].slice(0, 200),
+    );
+  }
+  function authed(data) {
+    localStorage.setItem("olioAuthToken", data.token);
     setToken(data.token);
-    setProfile({ email: data.email, name: data.name, savedItems: data.savedItems || [], orders: data.orders || [] });
-    setSaved(data.savedItems || []);
+    setProfile({ email: data.email, name: data.name });
+    setServerSaved([...(data.savedItems || [])].reverse());
     setCart(data.cart || []);
-    setTimeout(() => {
-      setAccountOpen(false);
-      setProfileOpen(true);
-    }, 700);
+    setAccountOpen(false);
+    reset();
+    go(pendingSearch.current ? "chat" : "account/profile");
   }
-
+  useEffect(() => {
+    if (profile && token && pendingSearch.current && !accountOpen) {
+      const pending = pendingSearch.current;
+      pendingSearch.current = null;
+      send(pending.text, { ...pending.options, fresh: true, retry: false });
+    }
+  }, [profile, token, accountOpen]);
   function signOut() {
-    localStorage.removeItem('olioAuthToken');
+    setSessionError("");
+    localStorage.removeItem("olioAuthToken");
+    localStorage.removeItem("olio-session");
     setToken(null);
     setProfile(null);
-    setSaved([]);
+    setServerSaved([]);
     setCart([]);
-    setProfileOpen(false);
-    showToast('Signed out');
+    reset();
+    go("chat");
   }
-
-  function checkout() {
-    if (!cart.length) {
-      showToast('Your cart is empty');
-      return;
-    }
-    if (!profile) showToast('Log in to track your orders');
-    // Open one retailer tab per seller group, like a hand-off checkout.
-    const groups = {};
-    cart.forEach((item) => {
-      const src = item.source || 'Online';
-      (groups[src] = groups[src] || []).push(item);
-    });
-    Object.values(groups).forEach(([first]) => {
-      const link = isValidHttpUrl(first.link) ? first.link : fallbackSearchLink(first.title);
-      window.open(link, '_blank');
-    });
-    if (profile && token) {
-      api.profileAction(token, 'confirmPurchase', { items: cart })
-        .then((d) => {
-          if (d.orders) setProfile((p) => ({ ...p, orders: d.orders }));
-          setCart([]);
-          persistCart([]);
-          setPanel(null);
-          showToast('Order saved to your history!');
-        })
-        .catch(() => showToast('Opened checkout, but could not save order'));
-    } else {
-      showToast('Opened checkout for each retailer');
-    }
+  async function saveName(name) {
+    const data = await api.profileAction(token, "updateProfile", { name });
+    setProfile((p) => ({ ...p, name: data.name }));
   }
-
-  const sortedResults = [...results];
-  if (sort === 'price-low') sortedResults.sort((a, b) => a.priceNum - b.priceNum);
-  if (sort === 'price-high') sortedResults.sort((a, b) => b.priceNum - a.priceNum);
-
+  function resume(c) {
+    reset();
+    conversationId.current = c.id;
+    setMessages(c.messages);
+    setResults(c.results || []);
+    setReading(c.reading);
+    lastParams.current = c.params || {};
+    go("chat");
+  }
+  function exportData() {
+    const blob = new Blob(
+      [
+        JSON.stringify(
+          {
+            profile: profile
+              ? {
+                  name: profile.name,
+                  email: profile.email,
+                  legacyOrders: profile.orders || [],
+                }
+              : personal,
+            saved,
+            collections,
+            history,
+            conversations,
+            appearance,
+            preferences,
+          },
+          null,
+          2,
+        ),
+      ],
+      { type: "application/json" },
+    );
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "olio-my-data.json";
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+  function clearLocal() {
+    setPersonal({});
+    setAppearance(appearanceDefaults);
+    setPreferences({});
+    setCollections({ names: [], assignments: {} });
+    setHistory([]);
+    setConversations([]);
+    setTrackHistory(true);
+    setShowFeedback(true);
+    if (!profile) setGuestSaved([]);
+    reset();
+    notify("Browser data cleared");
+  }
+  const section = page.split("/")[1] || "profile";
   return (
     <>
+      <a
+        className="skip-link"
+        href="#main"
+        onClick={(e) => {
+          e.preventDefault();
+          document.getElementById("main").focus();
+        }}
+      >
+        Skip to content
+      </a>
       <Nav
-        cartCount={cart.length}
+        page={page}
+        go={go}
         profile={profile}
-        onOpenPanel={setPanel}
-        onOpenAccount={() => (profile ? setProfileOpen(true) : setAccountOpen(true))}
+        cartCount={cart.length}
+        onSignIn={() => setAccountOpen(true)}
+        onSignOut={signOut}
       />
-      <Hero onSearch={doSearch} searching={searchState === 'loading'} />
-      {searchState !== 'idle' && (
-        <ResultsSection
-          ref={resultsRef}
-          query={lastQuery}
-          state={searchState}
-          error={searchError}
-          summary={summary}
-          reading={reading}
-          onRefine={refine}
-          results={sortedResults}
-          cart={cart}
-          saved={saved}
-          sort={sort}
-          onSort={setSort}
-          onToggleCart={toggleCart}
-          onToggleSave={toggleSave}
+      <main id="main" tabIndex={-1}>
+        {sessionLoading ? (
+          <div className="empty-state">
+            <h1>Welcome back.</h1>
+            <p>Loading your account…</p>
+          </div>
+        ) : sessionError ? (
+          <div role="alert" className="empty-state">
+            <p>{sessionError}</p>
+            <button
+              className="outline"
+              onClick={() => window.location.reload()}
+            >
+              Reload
+            </button>
+            <button className="text-button" onClick={signOut}>
+              Continue signed out
+            </button>
+          </div>
+        ) : !profile &&
+          (page === "saved" ||
+            page === "cart" ||
+            page.startsWith("account/")) ? (
+          <div className="empty-state">
+            <h1>Make yourself at home.</h1>
+            <p>
+              Create an account to keep your finds, conversations, and
+              preferences together.
+            </p>
+            <button className="primary" onClick={() => setAccountOpen(true)}>
+              Create account / Sign in
+            </button>
+          </div>
+        ) : (
+          <>
+            {page === "chat" && (
+              <Chat
+                key={scope}
+                messages={messages}
+                results={results}
+                reading={reading}
+                loading={loading}
+                error={error}
+                onSend={send}
+                onReset={reset}
+                saved={saved}
+                onSave={toggleSave}
+                onVisit={visit}
+                preferences={preferences}
+              />
+            )}
+            {page === "discover" && (
+              <Discover onSearch={(q) => send(q, { fresh: true })} />
+            )}
+            {page === "saved" && (
+              <Saved
+                saved={saved}
+                onSave={toggleSave}
+                onVisit={visit}
+                collections={collections}
+                setCollections={setCollections}
+                onCompare={(items) =>
+                  send(
+                    "Find alternatives to these: " +
+                      items
+                        .map((p) => p.title)
+                        .join("; ")
+                        .slice(0, 260),
+                    { fresh: true },
+                  )
+                }
+              />
+            )}
+            {page.startsWith("account") && (
+              <Account
+                key={scope + section}
+                section={section}
+                profile={profile}
+                personal={personal}
+                setPersonal={setPersonal}
+                appearance={appearance}
+                setAppearance={setAppearance}
+                preferences={preferences}
+                setPreferences={setPreferences}
+                history={history}
+                setHistory={setHistory}
+                conversations={conversations}
+                setConversations={setConversations}
+                trackHistory={trackHistory}
+                setTrackHistory={setTrackHistory}
+                showFeedback={showFeedback}
+                setShowFeedback={setShowFeedback}
+                onNameSave={saveName}
+                onSignIn={() => setAccountOpen(true)}
+                onVisit={visit}
+                onResume={resume}
+                onPassword={(p) =>
+                  api.profileAction(token, "changePassword", {
+                    currentPassword: p.current,
+                    newPassword: p.next,
+                  })
+                }
+                notify={notify}
+                onExport={exportData}
+                onClear={clearLocal}
+              />
+            )}
+            {page === "about" && (
+              <div className="about-page">
+                <span className="eyebrow">A little about Olio</span>
+                <h1>
+                  For the thing you can describe,
+                  <br />
+                  but can’t quite find.
+                </h1>
+                <p className="about-lead">
+                  Shopping should leave room for the details. The bag that fits
+                  your laptop. The light that makes a small room feel warmer.
+                  The budget you actually want to stick to.
+                </p>
+                <div className="about-photo art-home" />
+                <div className="about-columns">
+                  <section>
+                    <h2>Start with your own words.</h2>
+                    <p>
+                      Olio is a shopping assistant built by Delina Kahsay to
+                      explore a simple idea: what if finding a product started
+                      with describing what you need?
+                    </p>
+                  </section>
+                  <section>
+                    <h2>A shortlist you can shape.</h2>
+                    <p>
+                      Olio reads your request, searches shopping listings, and
+                      helps you refine the options. Keep the conversation going,
+                      save a find, or explore another direction.
+                    </p>
+                  </section>
+                  <section>
+                    <h2>The details still matter.</h2>
+                    <p>
+                      Recommendations use available listing information. Check
+                      specifications, current price, availability, and shipping
+                      with the retailer before buying. Olio does not process
+                      purchases.
+                    </p>
+                  </section>
+                </div>
+                <a href="#/chat" className="primary">
+                  Find your kind of thing <Icon name="arrow" />
+                </a>
+              </div>
+            )}
+            {page === "cart" && (
+              <>
+                <div className="page-heading">
+                  <h1>Your cart</h1>
+                  <p>
+                    Items from your earlier searches. Purchases happen with each
+                    retailer.
+                  </p>
+                </div>
+                <div className="surface settings-content">
+                  {!cart.length ? (
+                    <p>Your cart is empty. You can keep new finds in Saved.</p>
+                  ) : (
+                    cart.map((p) => (
+                      <div key={p.id} className="history-row">
+                        <div className="history-info">
+                          <h3>{p.title}</h3>
+                          <p>{p.price}</p>
+                        </div>
+                        <a
+                          className="outline"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          href={
+                            isValidHttpUrl(p.link)
+                              ? p.link
+                              : fallbackSearchLink(p.title)
+                          }
+                          onClick={() => visit(p)}
+                        >
+                          View at retailer
+                        </a>
+                        <button
+                          className="text-button"
+                          onClick={async () => {
+                            try {
+                              const next = cart.filter((x) => x.id !== p.id);
+                              await api.profileAction(token, "saveCart", {
+                                cart: next,
+                              });
+                              setCart(next);
+                            } catch {
+                              notify("Could not update cart", true);
+                            }
+                          }}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </>
+            )}
+            {!["chat", "discover", "saved", "about", "cart"].includes(page) &&
+              !page.startsWith("account") && (
+                <div className="empty-state">
+                  <h1>Let’s get you back.</h1>
+                  <a className="primary" href="#/chat">
+                    Open Olio
+                  </a>
+                </div>
+              )}
+          </>
+        )}
+      </main>
+      <footer className="site-footer">
+        <span className="serif">A little particular. A little Olio.</span>
+        <a href="#/about">About</a>
+        <a href="#/account/help">Help</a>
+        <a href="#/account/privacy">Privacy</a>
+      </footer>
+      {accountOpen && (
+        <AccountModal
+          onClose={() => {
+            pendingSearch.current = null;
+            setAccountOpen(false);
+          }}
+          onAuthed={authed}
         />
-      )}
-      <SidePanel
-        type={panel}
-        cart={cart}
-        saved={saved}
-        onClose={() => setPanel(null)}
-        onRemoveCart={(id) => toggleCart(cart.find((c) => c.id === id))}
-        onRemoveSaved={(id) => toggleSave(saved.find((s) => s.id === id))}
-        onCheckout={checkout}
-      />
-      {accountOpen && <AccountModal onClose={() => setAccountOpen(false)} onAuthed={handleAuthed} />}
-      {profileOpen && profile && (
-        <ProfileModal profile={profile} saved={saved} onClose={() => setProfileOpen(false)} onSignOut={signOut} />
       )}
       <Toast message={toast} />
     </>
