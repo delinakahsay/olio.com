@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import * as api from "../api.js";
 export default function AccountModal({ onClose, onAuthed }) {
-  const [mode, setMode] = useState("login"),
+  const [mode, setMode] = useState("register"),
     [name, setName] = useState(""),
     [email, setEmail] = useState(""),
     [password, setPassword] = useState(""),
@@ -79,6 +79,10 @@ export default function AccountModal({ onClose, onAuthed }) {
             ×
           </button>
         </div>
+        <p>
+          Create an account to chat, find your next favorite, and save your
+          shortlist.
+        </p>
         <div className="account-steps">
           {["login", "register"].map((m) => (
             <button

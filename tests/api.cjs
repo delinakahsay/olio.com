@@ -1,7 +1,15 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const dbForSearch = require("../api/db");
+dbForSearch.getUserByToken = async (token) => ({
+  user: token === "valid" ? { id: "test" } : null,
+});
 const search = require("../api/search");
-async function call(handler, body, headers = {}) {
+async function call(
+  handler,
+  body,
+  headers = { authorization: "Bearer valid" },
+) {
   let code = 200,
     payload;
   await handler(
@@ -177,7 +185,8 @@ test("profile changes require auth; password changes verify current password", a
   const profile = require("../api/profile");
   try {
     assert.equal(
-      (await call(profile, { action: "updateProfile", name: "After" })).code,
+      (await call(profile, { action: "updateProfile", name: "After" }, {}))
+        .code,
       401,
     );
     let r = await call(
@@ -213,4 +222,13 @@ test("profile changes require auth; password changes verify current password", a
     db.updateUser = oldUpdate;
     delete require.cache[require.resolve("../api/profile")];
   }
+});
+
+test("search rejects missing or invalid sessions before contacting providers", async () => {
+  assert.equal((await call(search, { query: "lamp" }, {})).code, 401);
+  assert.equal(
+    (await call(search, { query: "lamp" }, { authorization: "Bearer invalid" }))
+      .code,
+    401,
+  );
 });

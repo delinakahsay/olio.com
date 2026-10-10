@@ -14,12 +14,15 @@ async function parseJson(res) {
   return data;
 }
 
-export function search(params) {
+export function search(params, token) {
   // params: { query, category, priceMin, priceMax }
   const payload = typeof params === "string" ? { query: params } : params;
   return fetch("/api/search", {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: {
+      "content-type": "application/json",
+      authorization: "Bearer " + token,
+    },
     body: JSON.stringify(payload),
   }).then(parseJson);
 }

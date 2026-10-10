@@ -24,6 +24,7 @@ export default function App() {
   const [serverSaved, setServerSaved] = useState([]);
   const [cart, setCart] = useState([]);
   const [accountOpen, setAccountOpen] = useState(false);
+  const pendingSearch = useRef(null);
   const scope = "olio:v2:" + (profile?.email || "guest") + ":";
   const [guestSaved, setGuestSaved] = useLocal("olio:v2:guest:saved", []);
   const [personal, setPersonal] = useLocal(scope + "personal", {});
@@ -154,6 +155,11 @@ export default function App() {
   }
   async function send(text, options = {}) {
     if (!text?.trim() || loading) return;
+    if (!profile || !token) {
+      pendingSearch.current = { text, options };
+      setAccountOpen(true);
+      return;
+    }
     go("chat");
     const id = ++requestId.current;
     const previous = options.fresh ? [] : messages;
@@ -179,15 +185,18 @@ export default function App() {
     setError("");
     setReading(null);
     try {
-      const data = await api.search({
-        query: text.trim(),
-        ...lastParams.current,
-        messages: next
-          .filter((m) => m.role === "user")
-          .slice(0, -1)
-          .slice(-8)
-          .map((m) => m.text),
-      });
+      const data = await api.search(
+        {
+          query: text.trim(),
+          ...lastParams.current,
+          messages: next
+            .filter((m) => m.role === "user")
+            .slice(0, -1)
+            .slice(-8)
+            .map((m) => m.text),
+        },
+        token,
+      );
       if (id !== requestId.current) return;
       const products = data.products || [];
       const response =
@@ -215,6 +224,13 @@ export default function App() {
       );
     } catch (err) {
       if (id === requestId.current) {
+        if (err.status === 401) {
+          pendingSearch.current = {
+            text,
+            options: { ...options, retry: true },
+          };
+          setAccountOpen(true);
+        }
         setError(err.message);
         setResults([]);
       }
@@ -229,10 +245,7 @@ export default function App() {
     }
     const isSaved = saved.some((p) => p.id === product.id);
     if (!profile) {
-      setGuestSaved((rows) =>
-        isSaved ? rows.filter((p) => p.id !== product.id) : [product, ...rows],
-      );
-      notify(isSaved ? "Removed from saved" : "Saved on this browser");
+      setAccountOpen(true);
       return;
     }
     const owner = token;
@@ -275,8 +288,15 @@ export default function App() {
     setCart(data.cart || []);
     setAccountOpen(false);
     reset();
-    go("account/profile");
+    go(pendingSearch.current ? "chat" : "account/profile");
   }
+  useEffect(() => {
+    if (profile && token && pendingSearch.current && !accountOpen) {
+      const pending = pendingSearch.current;
+      pendingSearch.current = null;
+      send(pending.text, { ...pending.options, fresh: true, retry: false });
+    }
+  }, [profile, token, accountOpen]);
   function signOut() {
     setSessionError("");
     localStorage.removeItem("olioAuthToken");
@@ -384,6 +404,20 @@ export default function App() {
             </button>
             <button className="text-button" onClick={signOut}>
               Continue signed out
+            </button>
+          </div>
+        ) : !profile &&
+          (page === "saved" ||
+            page === "cart" ||
+            page.startsWith("account/")) ? (
+          <div className="empty-state">
+            <h1>Make yourself at home.</h1>
+            <p>
+              Create an account to keep your finds, conversations, and
+              preferences together.
+            </p>
+            <button className="primary" onClick={() => setAccountOpen(true)}>
+              Create account / Sign in
             </button>
           </div>
         ) : (
@@ -579,7 +613,13 @@ export default function App() {
         <a href="#/account/privacy">Privacy</a>
       </footer>
       {accountOpen && (
-        <AccountModal onClose={() => setAccountOpen(false)} onAuthed={authed} />
+        <AccountModal
+          onClose={() => {
+            pendingSearch.current = null;
+            setAccountOpen(false);
+          }}
+          onAuthed={authed}
+        />
       )}
       <Toast message={toast} />
     </>

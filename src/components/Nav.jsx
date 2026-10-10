@@ -44,7 +44,13 @@ export default function Nav({
         {link("about", "About")}
       </nav>
       <nav className="nav-end" aria-label="Personal">
-        {link("saved", "Saved")}
+        {profile ? (
+          link("saved", "Saved")
+        ) : (
+          <button className="primary signup-button" onClick={onSignIn}>
+            Create account
+          </button>
+        )}
         <div className="account-menu" ref={root}>
           <button
             className="text-button"

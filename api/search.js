@@ -1,4 +1,5 @@
 const crypto = require("crypto");
+const db = require("./db");
 
 // Stable ID derived from the product's identity (link or title), NOT its position.
 // This means the same product gets the same id across every search and every session,
@@ -168,6 +169,21 @@ module.exports = async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
+  const authorization = req.headers?.authorization || "";
+  const token = authorization.startsWith("Bearer ")
+    ? authorization.slice(7)
+    : "";
+  try {
+    if (!token || !(await db.getUserByToken(token)).user) {
+      return res
+        .status(401)
+        .json({ error: "Sign in to start shopping with Olio." });
+    }
+  } catch {
+    return res
+      .status(503)
+      .json({ error: "We could not verify your account. Please try again." });
+  }
   const body = req.body || {};
   const query = str(body.query, 300);
   if (!query) {
@@ -188,11 +204,9 @@ module.exports = async function handler(req, res) {
   const OPENAI_KEY = process.env.OPENAI_API_KEY;
 
   if (!SERP_KEY) {
-    return res
-      .status(500)
-      .json({
-        error: "SERP_API_KEY not configured in Vercel environment variables",
-      });
+    return res.status(500).json({
+      error: "SERP_API_KEY not configured in Vercel environment variables",
+    });
   }
 
   try {
@@ -210,8 +224,8 @@ module.exports = async function handler(req, res) {
     const terms = reading?.searchTerms || contextualQuery;
     const serpQuery = [terms, category].filter(Boolean).join(" ") + " buy";
 
-    const serpUrl = `https://serpapi.com/search.json?q=${encodeURIComponent(serpQuery)}&tbm=shop&num=24&api_key=${SERP_KEY}`;
-    const serpRes = await fetchWithTimeout(serpUrl, {}, 12000);
+    const serpUrl = `https://serpapi.com/search.json?q=${encodeURIComponent(serpQuery)}&engine=google_shopping&gl=us&hl=en&api_key=${SERP_KEY}`;
+    const serpRes = await fetchWithTimeout(serpUrl, {}, 30000);
 
     if (!serpRes.ok) {
       const errText = await serpRes.text();
@@ -219,6 +233,10 @@ module.exports = async function handler(req, res) {
     }
 
     const serpData = await serpRes.json();
+    if (serpData.error) {
+      // A provider error is not an empty set of shopping results.
+      throw new Error("Shopping provider returned an error");
+    }
     const shopResults = serpData.shopping_results || [];
 
     const readingOut = reading

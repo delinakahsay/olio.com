@@ -31,6 +31,7 @@ const assert = require("node:assert/strict");
     },
   ];
   await page.route("**/api/search", async (route) => {
+    assert.equal(route.request().headers().authorization, "Bearer valid");
     requests.push(route.request().postDataJSON());
     await route.fulfill({
       json: {
@@ -43,6 +44,22 @@ const assert = require("node:assert/strict");
       },
     });
   });
+  let savedItems = [];
+  const user = {
+    token: "valid",
+    email: "shopper@example.com",
+    name: "Shopper",
+  };
+  await page.route("**/api/auth", (r) => r.fulfill({ json: user }));
+  await page.route("**/api/profile", (r) => {
+    if (r.request().method() === "POST") {
+      const body = r.request().postDataJSON();
+      if (body.action === "saveItem") savedItems.push(body.item);
+      if (body.action === "removeItem")
+        savedItems = savedItems.filter((p) => p.id !== body.itemId);
+    }
+    return r.fulfill({ json: { ...user, savedItems, cart: [] } });
+  });
   await page.goto("http://127.0.0.1:5173");
   await page.waitForTimeout(400);
   await page.screenshot({
@@ -53,6 +70,16 @@ const assert = require("node:assert/strict");
     .getByRole("textbox", { name: "Message Olio" })
     .fill("A bag for class");
   await page.getByRole("button", { name: "Send message" }).click();
+  await page.getByRole("dialog").waitFor();
+  assert.equal(
+    requests.length,
+    0,
+    "Guest search must not contact search endpoint",
+  );
+  await page.getByLabel("Name", { exact: true }).fill("Shopper");
+  await page.getByLabel("Email", { exact: true }).fill("shopper@example.com");
+  await page.getByLabel("Password", { exact: true }).fill("test-password");
+  await page.locator(".account-submit").click();
   await page.getByText("Two options to explore.").waitFor();
   await page.getByRole("button", { name: "Waterproof", exact: true }).click();
   await page.waitForFunction(
@@ -85,6 +112,9 @@ const assert = require("node:assert/strict");
   await page.getByRole("button", { name: "Save changes", exact: true }).click();
   assert.equal(await page.locator("html").getAttribute("data-mode"), "dark");
   await page.reload();
+  await page.waitForFunction(
+    () => document.documentElement.dataset.palette === "forest",
+  );
   assert.equal(
     await page.locator("html").getAttribute("data-palette"),
     "forest",
@@ -112,8 +142,10 @@ const assert = require("node:assert/strict");
   await page
     .getByRole("button", { name: "Marked as bought", exact: true })
     .click();
+  await page.locator(".history-row").waitFor();
   assert.equal(await page.locator(".history-row").count(), 1);
   await page.getByRole("button", { name: "Undo bought", exact: true }).click();
+  await page.locator(".history-row").waitFor({ state: "detached" });
   assert.equal(await page.locator(".history-row").count(), 0);
   for (const width of [1440, 768, 390, 320]) {
     await page.setViewportSize({ width, height: 1000 });

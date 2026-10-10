@@ -1797,3 +1797,35 @@ main {
     border-color: #4b4146;
   }
 }
+
+/* Keep narrow controls and long product/account text inside their panels. */
+.signup-button {
+  white-space: nowrap;
+  padding: 10px 16px;
+}
+.product-card,
+.message,
+.settings-content,
+.account-content {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+button,
+input,
+select,
+textarea {
+  max-width: 100%;
+}
+@media (max-width: 480px) {
+  .site-header {
+    flex-wrap: wrap;
+    row-gap: 12px;
+  }
+  .nav-end {
+    margin-left: auto;
+  }
+  .signup-button {
+    padding: 9px 12px;
+    font-size: 12px;
+  }
+}
