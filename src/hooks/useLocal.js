@@ -14,11 +14,14 @@ export function useLocal(key, fallback) {
     value: readLocal(key, fallback),
   }));
   const value = slot.key === key ? slot.value : readLocal(key, fallback);
+  // Synchronize the slot on account changes before exposing its setter.
+  // Reading storage inside an updater could apply a toggle twice in StrictMode.
+  if (slot.key !== key) setSlot({ key, value });
   const setValue = useCallback(
     (next) => {
       setSlot((previous) => {
         const current =
-          previous.key === key ? previous.value : readLocal(key, fallback);
+          previous.key === key ? previous.value : value;
         const value = typeof next === "function" ? next(current) : next;
         try {
           localStorage.setItem(key, JSON.stringify(value));
@@ -28,7 +31,7 @@ export function useLocal(key, fallback) {
         return { key, value };
       });
     },
-    [key],
+    [key, value],
   );
   return [value, setValue];
 }
