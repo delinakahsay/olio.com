@@ -135,3 +135,61 @@ nav{position:fixed;top:0;left:0;right:0;z-index:200;display:flex;align-items:cen
 .signout-btn{width:100%;background:var(--bg);color:var(--text);border:1px solid var(--border-dark);border-radius:var(--radius-sm);padding:0.8rem;font-family:'Archivo',sans-serif;font-size:0.7rem;font-weight:600;letter-spacing:0.14em;text-transform:uppercase;cursor:pointer;margin-top:1rem;transition:all 0.2s;}
 .signout-btn:hover{background:var(--text);color:#fff;}
 @media(max-width:640px){.panel{width:100%;}.hero-title{font-size:2.6rem;}.price-inputs{display:none;}nav{padding:0 1.25rem;}}
+
+
+/* --- How Olio read the request -------------------------------------------
+   Replaces the generic advice paragraph. The shopper sees the constraints the
+   search actually ran on, and can add one without retyping the sentence. */
+.reading {
+  border: 1px solid var(--line, #e5e5e5);
+  border-radius: 10px;
+  padding: 1rem 1.15rem;
+  margin: 0 0 1.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: .7rem;
+}
+.reading-row { display: flex; gap: .85rem; align-items: baseline; flex-wrap: wrap; }
+.reading-label {
+  font-size: .68rem;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--muted, #777);
+  flex: none;
+  min-width: 5.5rem;
+}
+.chips { display: flex; flex-wrap: wrap; gap: .4rem; }
+.chip {
+  font: inherit;
+  font-size: .82rem;
+  line-height: 1.2;
+  padding: .32rem .7rem;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.chip-fixed { background: #f3f1ee; color: #1a1a1a; border: 1px solid transparent; }
+.chip-action {
+  background: transparent;
+  color: #1a1a1a;
+  border: 1px solid var(--line, #e0e0e0);
+  cursor: pointer;
+  transition: border-color .15s ease, color .15s ease;
+}
+.chip-action:hover { border-color: var(--accent, #f0401a); color: var(--accent, #f0401a); }
+.chip-action:focus-visible { outline: 2px solid var(--accent, #f0401a); outline-offset: 2px; }
+.reading-note { font-size: .88rem; color: var(--muted, #666); line-height: 1.5; }
+
+/* Why this product, judged against the request rather than scraped copy. */
+.product-why {
+  font-size: .82rem;
+  line-height: 1.45;
+  color: #3a3a3a;
+  border-left: 2px solid var(--accent, #f0401a);
+  padding-left: .55rem;
+  margin: .1rem 0 .15rem;
+}
+
+@media (max-width: 560px) {
+  .reading-label { min-width: 0; }
+  .reading-row { gap: .45rem; }
+}

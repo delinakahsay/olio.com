@@ -10,11 +10,13 @@ async function parseJson(res) {
   return data;
 }
 
-export function search(query) {
+export function search(params) {
+  // params: { query, category, priceMin, priceMax }
+  const payload = typeof params === 'string' ? { query: params } : params;
   return fetch('/api/search', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ query }),
+    body: JSON.stringify(payload),
   }).then(parseJson);
 }
 

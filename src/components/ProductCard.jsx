@@ -17,7 +17,9 @@ export default function ProductCard({ product, inCart, isSaved, onToggleCart, on
         <div className="product-source">{product.source}</div>
         <div className="product-title">{product.title}</div>
         {product.price && <div className="product-price">{product.price}</div>}
-        <div className="product-snippet">{product.snippet}</div>
+        {product.why
+          ? <div className="product-why">{product.why}</div>
+          : <div className="product-snippet">{product.snippet}</div>}
         <div className="product-actions">
           <button className={'btn-cart' + (inCart ? ' in-cart' : '')} onClick={onToggleCart}>
             {inCart ? 'Added' : '+ Cart'}

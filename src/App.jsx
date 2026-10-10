@@ -17,6 +17,7 @@ export default function App() {
 
   const [results, setResults] = useState([]);
   const [summary, setSummary] = useState('');
+  const [reading, setReading] = useState(null);
   const [searchState, setSearchState] = useState('idle'); // idle | loading | done | error
   const [searchError, setSearchError] = useState('');
   const [lastQuery, setLastQuery] = useState('');
@@ -50,31 +51,42 @@ export default function App() {
     });
   }, [token]);
 
+  const lastParams = useRef({});
+
   async function doSearch({ query, category, priceMin, priceMax }) {
     if (!query) {
       showToast('Type what you are looking for');
       return;
     }
-    let context = query;
-    if (category) context += ' ' + category;
-    if (priceMin) context += ' min price $' + priceMin;
-    if (priceMax) context += ' max price $' + priceMax;
+    // The price bounds travel as numbers now, so the server can filter on them
+    // instead of hoping a shopping index reads "max price $80" as a budget.
+    lastParams.current = { query, category, priceMin, priceMax };
 
     setLastQuery(query);
     setSearchState('loading');
     setResults([]);
     setSummary('');
+    setReading(null);
     setSort('relevance');
     setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
     try {
-      const data = await api.search(context);
+      const data = await api.search({ query, category, priceMin, priceMax });
       setResults(data.products || []);
       setSummary(data.summary || '');
+      setReading(data.reading || null);
       setSearchState('done');
     } catch (err) {
       setSearchError(err.message);
       setSearchState('error');
     }
+  }
+
+  // Narrowing re-runs the search with the extra words folded into the request,
+  // so the shopper steers the result set without retyping the whole sentence.
+  function refine(label) {
+    const base = lastParams.current.query || lastQuery;
+    if (!base) return;
+    doSearch({ ...lastParams.current, query: `${base}, ${label.toLowerCase()}` });
   }
 
   function persistCart(nextCart) {
@@ -175,6 +187,8 @@ export default function App() {
           state={searchState}
           error={searchError}
           summary={summary}
+          reading={reading}
+          onRefine={refine}
           results={sortedResults}
           cart={cart}
           saved={saved}
