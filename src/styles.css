@@ -269,17 +269,24 @@ a:hover {
   line-height: 1;
   display: inline-flex;
   align-items: center;
-  gap: 0.22em;
+  gap: 0;
 }
-/* The field, at the line count that survives this size. Masked so it takes
-   currentColor rather than being stuck black in dark mode. */
+/* The mark standing in for the first o. The glyph box is 100 units wide and
+   the counter is 35 of them, so the box has to be about 2em for the counter
+   to sit at letter height. The negative margins pull the surrounding letters
+   back in under the spikes, which is what makes it read as a letter rather
+   than a logo with a word after it. */
 .wordmark-mark {
-  width: 0.95em;
-  height: 0.95em;
+  width: 1.95em;
+  height: 1.95em;
   flex: none;
+  margin: 0 -0.40em 0 -0.34em;
   background: currentColor;
-  -webkit-mask: url("/brand/olio-mark.svg") center / contain no-repeat;
-  mask: url("/brand/olio-mark.svg") center / contain no-repeat;
+  -webkit-mask: url("/brand/olio-glyph.svg") center / contain no-repeat;
+  mask: url("/brand/olio-glyph.svg") center / contain no-repeat;
+}
+.wordmark-rest {
+  position: relative;
 }
 .about-mark {
   width: 190px;
@@ -1507,7 +1514,14 @@ main {
     gap: 25px;
   }
   .wordmark {
-    font-size: 30px;
+    font-size: 26px;
+  }
+  /* The header is only 80px here, so the glyph box has to come in or the
+     spikes clip against the edges and crowd the nav. */
+  .wordmark-mark {
+    width: 1.72em;
+    height: 1.72em;
+    margin: 0 -0.34em 0 -0.30em;
   }
   .site-header nav {
     gap: 14px;

@@ -27,9 +27,20 @@ resolution that survives 16px.
 
 Favicon, app icon, avatar, and anywhere under 40px. It is NOT the header
 lockup: a plain serif O beside "lio" reads as a differently shaped letter, not
-as a logo. The header uses the field.
+as a logo.
 
-It can still stand in for a capital O where a letterform is wanted.
+## The glyph  `olio-glyph.svg`
+
+The mark standing in for the first o of the wordmark. Same construction, but
+the chords are short (l=21 against the field's 44), which pulls the halo in
+tight around the counter so the whole thing is letter-proportioned. With the
+field's long chords the counter is a third the width of the glyph and it reads
+as a star parked next to a word.
+
+Seating it: the box is 100 units wide and the counter is 35 of them, so the
+box has to be roughly 2em for the counter to sit at letter height, with
+negative margins pulling the neighbouring letters back under the spikes.
+Mobile drops to 1.72em or the spikes clip against the 80px header.
 
 Adding a few of the field's chords to it was tried and rejected: at every size
 it reads as a struck-through O rather than a swept one.
