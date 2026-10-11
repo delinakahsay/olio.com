@@ -1,6 +1,22 @@
 import { useEffect, useRef, useState } from "react";
 import Icon from "./Icon.jsx";
 import ProductCard from "./ProductCard.jsx";
+const CATEGORIES = [
+  ["clothing", "Clothing"],
+  ["shoes", "Shoes"],
+  ["bags", "Bags & luggage"],
+  ["jewelry", "Jewelry & watches"],
+  ["beauty", "Beauty & skincare"],
+  ["home", "Home & furniture"],
+  ["kitchen", "Kitchen & dining"],
+  ["bedding", "Bedding & bath"],
+  ["electronics", "Tech & audio"],
+  ["fitness", "Fitness & outdoors"],
+  ["books", "Books & stationery"],
+  ["toys", "Toys & games"],
+  ["pets", "Pet supplies"],
+  ["gifts", "Gifts"],
+];
 import { Inspiration, inspirations } from "./Discover.jsx";
 // The one line on an empty conversation. Not a greeting: Olio is a place you
 // shop, not someone you say good evening to. Each line gives permission to be
@@ -187,31 +203,33 @@ export default function Chat({
                 input reads as one object the way Claude's and GPT's do. */}
             <div className="composer-bar">
               <div className="composer-filters">
-                <label>
+                {/* A free number beats a five-rung dropdown: "under $140" is a
+                    real budget and "Under $200" was never anyone's. */}
+                <label className="budget-field">
                   <span className="sr-only">Maximum budget</span>
-                  <select
+                  <span aria-hidden="true">$</span>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    min="0"
+                    step="5"
+                    placeholder="Max"
                     value={budget}
                     onChange={(e) => setBudget(e.target.value)}
-                  >
-                    <option value="">Any budget</option>
-                    {[25, 50, 100, 200, 500].map((n) => (
-                      <option key={n} value={n}>
-                        Under ${n}
-                      </option>
-                    ))}
-                  </select>
+                  />
                 </label>
-                <label>
+                <label className="select-field">
                   <span className="sr-only">Category</span>
                   <select
                     value={category}
                     onChange={(e) => setCategory(e.target.value)}
                   >
                     <option value="">All categories</option>
-                    <option value="clothing">Clothing & bags</option>
-                    <option value="home">Home</option>
-                    <option value="electronics">Tech</option>
-                    <option value="beauty">Beauty</option>
+                    {CATEGORIES.map(([value, label]) => (
+                      <option key={value} value={value}>
+                        {label}
+                      </option>
+                    ))}
                   </select>
                 </label>
               </div>
