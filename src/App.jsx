@@ -12,7 +12,11 @@ import { useLocal, readLocal } from "./hooks/useLocal.js";
 import { isValidHttpUrl, fallbackSearchLink } from "./utils.js";
 
 // Routes that merged into another page. Old links and bookmarks still land.
-const REDIRECTS = { "account/personal": "account/profile" };
+const REDIRECTS = {
+  "account/personal": "account/profile",
+  // Discover duplicated the tiles already on the chat panel.
+  discover: "chat",
+};
 const getRoute = () => {
   const raw = window.location.hash.replace(/^#\/?/, "") || "chat";
   return REDIRECTS[raw] || raw;
@@ -184,6 +188,9 @@ export default function App() {
     lastParams.current = {
       category: params.category ?? preferences.category ?? "",
       priceMax,
+      // Carried so a filter change re-runs the same request narrowed, rather
+      // than starting over.
+      refinements: params.refinements ?? lastParams.current?.refinements ?? [],
     };
     setMessages(next);
     setLoading(true);

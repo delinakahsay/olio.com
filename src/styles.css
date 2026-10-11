@@ -427,6 +427,25 @@ main {
   font-size: 13px;
   padding: 9px 15px;
 }
+/* A filter that is switched on, and can be switched off again. */
+.suggestions .pinned {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  padding: 9px 12px 9px 15px;
+  border-radius: 22px;
+  background: var(--accent);
+  color: var(--on-accent, #fff);
+  border: 1px solid transparent;
+}
+.suggestions .pinned svg {
+  width: 13px;
+  opacity: 0.75;
+}
+.suggestions .pinned:hover svg {
+  opacity: 1;
+}
 /* The composer is one object: text on top, controls along the bottom edge,
    send at the far right. Nothing floats underneath it. */
 .composer {

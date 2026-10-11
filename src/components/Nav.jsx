@@ -43,7 +43,6 @@ export default function Nav({
         {/* The shopping surface is where the wordmark points, so it needs a
             label of its own rather than being reachable only by the logo. */}
         {link("chat", "Find")}
-        {link("discover", "Discover")}
         {link("about", "About")}
       </nav>
       <nav className="nav-end" aria-label="Personal">

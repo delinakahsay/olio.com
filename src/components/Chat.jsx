@@ -30,6 +30,9 @@ export default function Chat({
   const [category, setCategory] = useState(preferences.category || "");
   const [budget, setBudget] = useState(preferences.budget || "");
   const [sort, setSort] = useState("match");
+  // Refinements accumulate. Clicking one used to fire a whole new search and
+  // throw away the last, so you could never ask for two things at once.
+  const [pinned, setPinned] = useState([]);
   const feed = useRef(null);
   useEffect(() => {
     if (feed.current)
@@ -46,8 +49,21 @@ export default function Chat({
   function submit(e) {
     e.preventDefault();
     if (!draft.trim() || loading) return;
-    onSend(draft.trim(), { category, priceMax: budget });
+    onSend(draft.trim(), { category, priceMax: budget, refinements: pinned });
     setDraft("");
+  }
+  // Re-runs the last request with the filter set changed, instead of sending
+  // the filter itself as a new message.
+  function applyFilters(next) {
+    setPinned(next);
+    const last = messages.filter((m) => m.role === "user").at(-1)?.text;
+    if (last && !loading)
+      onSend(last, {
+        category,
+        priceMax: budget,
+        refinements: next,
+        retry: true,
+      });
   }
   return (
     <>
@@ -114,17 +130,31 @@ export default function Chat({
                 </button>
               </div>
             )}
-            {!loading && reading?.refinements?.length > 0 && (
+            {!loading && (pinned.length > 0 || reading?.refinements?.length > 0) && (
               <div className="suggestions">
-                {reading.refinements.map((r) => (
+                {pinned.map((r) => (
                   <button
-                    className="outline"
+                    className="pinned"
                     key={r}
-                    onClick={() => onSend(r, { category, priceMax: budget })}
+                    aria-pressed="true"
+                    title={`Remove ${r}`}
+                    onClick={() => applyFilters(pinned.filter((p) => p !== r))}
                   >
                     {r}
+                    <Icon name="close" />
                   </button>
                 ))}
+                {(reading?.refinements || [])
+                  .filter((r) => !pinned.includes(r))
+                  .map((r) => (
+                    <button
+                      className="outline"
+                      key={r}
+                      onClick={() => applyFilters([...pinned, r])}
+                    >
+                      {r}
+                    </button>
+                  ))}
               </div>
             )}
           </div>
