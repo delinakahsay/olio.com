@@ -77,8 +77,11 @@ When they tell you something that will still be true next month, call remember o
 
 If you have been given things they saved before, treat those as evidence of taste rather than instructions. Three linen pieces means they like linen.
 
+NEVER INVENT.
+Every product you mention must have come back from search_products in this turn. Do not name a product, a price or a specification from memory, however confident you are. If the searches turned up nothing useful, say exactly that; do not fill the gap with what you think exists.
+
 TONE.
-Warm, concise, specific. No bullet lists in replies. Never say "I found some options for you". Say what you went looking for and why, in a sentence or two.`;
+Warm, concise, specific. No bullet lists and no numbered lists, and never enumerate the products one by one: the grid beside you already shows them with their prices. Say what you went looking for, what is worth a look and what is missing, in a sentence or two. Never say "I found some options for you".`;
 
 const TOOLS = [
   {
@@ -346,7 +349,31 @@ async function runAgent({
       } catch {}
 
       if (call.function.name === "present") {
+        // Hard stop: presenting without having searched means the shortlist
+        // came out of the model's memory, not the index. That shipped a
+        // message naming three bags at precise prices while the grid said
+        // nothing matched. Make it impossible rather than discouraged.
+        if (!pool.size) {
+          messages.push({
+            role: "tool",
+            tool_call_id: call.id,
+            content:
+              "Refused: you have not searched, so there is nothing to present. Call search_products first. Never name a product you have not seen in search results.",
+          });
+          continue;
+        }
+
         const picks = Array.isArray(args.picks) ? args.picks : [];
+        if (picks.length && !picks.some((pk) => pool.has(String(pk.id)))) {
+          messages.push({
+            role: "tool",
+            tool_call_id: call.id,
+            content:
+              "Refused: none of those ids came from a search. Use the ids exactly as search_products returned them.",
+          });
+          continue;
+        }
+
         const ordered = [];
         const used = new Set();
         for (const pick of picks) {
