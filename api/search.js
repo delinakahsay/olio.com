@@ -65,6 +65,17 @@ module.exports = async function handler(req, res) {
   const pinned = Array.isArray(body.refinements)
     ? body.refinements.filter((r) => typeof r === "string").map((r) => str(r, 28)).slice(0, 6)
     : [];
+  // The running brief of hard requirements and soft preferences, round
+  // tripped through the client so a follow-up about style cannot quietly
+  // drop "fits a 14 inch laptop".
+  const brief = Array.isArray(body.brief)
+    ? body.brief
+        .filter((r) => r && typeof r.text === "string")
+        .map((r) => ({ text: str(r.text, 32), hard: Boolean(r.hard) }))
+        .filter((r) => r.text)
+        .slice(0, 8)
+    : [];
+
   const notes = [];
   if (pinned.length) notes.push(`Filters they switched on: ${pinned.join(", ")}.`);
   if (str(body.category, 40)) notes.push(`Browsing category: ${str(body.category, 40)}.`);
@@ -82,6 +93,7 @@ module.exports = async function handler(req, res) {
       message,
       memory: Array.isArray(user.memory) ? user.memory : [],
       saved: Array.isArray(user.savedItems) ? user.savedItems : [],
+      brief,
     });
 
     // Persist only when the agent actually added something. Capped so a long

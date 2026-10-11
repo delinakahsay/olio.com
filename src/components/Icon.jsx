@@ -8,6 +8,7 @@ const paths = {
   reset: "M3 10a9 9 0 1 1 2 8M3 4v6h6",
   check: "m5 12 4 4L19 6",
   plus: "M12 5v14M5 12h14",
+  lock: "M7 11V7a5 5 0 0 1 10 0v4M5 11h14v10H5V11Z",
 };
 export default function Icon({ name, ...props }) {
   return (

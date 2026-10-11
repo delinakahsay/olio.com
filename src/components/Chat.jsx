@@ -41,6 +41,7 @@ export default function Chat({
   onSave,
   onVisit,
   preferences,
+  onRelax,
 }) {
   const [draft, setDraft] = useState("");
   const [category, setCategory] = useState(preferences.category || "");
@@ -260,10 +261,27 @@ export default function Chat({
               </select>
             )}
           </div>
-          {reading?.constraints?.length > 0 && (
+          {reading?.requirements?.length > 0 && (
+            // Hard requirements are shown as locked, because the failure this
+            // fixes was one quietly disappearing when a style preference
+            // arrived. Click one to relax it on purpose.
             <div className="constraint-list">
-              {reading.constraints.map((c) => (
-                <span key={c}>{c}</span>
+              {reading.requirements.map((r) => (
+                <span
+                  key={r.text}
+                  className={r.hard ? "req-hard" : undefined}
+                  title={r.hard ? `Required. Click to relax.` : undefined}
+                  role={r.hard ? "button" : undefined}
+                  tabIndex={r.hard ? 0 : undefined}
+                  onClick={
+                    r.hard
+                      ? () => onRelax && onRelax(r.text)
+                      : undefined
+                  }
+                >
+                  {r.hard && <Icon name="lock" />}
+                  {r.text}
+                </span>
               ))}
             </div>
           )}

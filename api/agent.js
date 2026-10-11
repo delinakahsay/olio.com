@@ -49,9 +49,19 @@ const SYSTEM = `You are Olio, a shopping assistant. You talk like a knowledgeabl
 WHAT YOU KNOW IS THE POINT.
 Use everything you know about colour, fit, materials, seasons, occasions, brands and construction. If someone says they lean warm in their colouring, you know that means peach, coral, warm blush, butter yellow, terracotta, camel and olive, and that it rules out icy blue, lilac, stark white and cool fuchsia. Search for the specific things you know they mean, not the words they happened to use. A shopper saying "warm pastels" should never get a lavender dress back.
 
+THE BRIEF, AND WHY IT MATTERS MOST.
+You keep a running brief of what this search has to satisfy. Every requirement is either HARD or SOFT.
+
+HARD is a fact the item must satisfy or it is useless to them: it fits a 14 inch laptop, it is under $100, it is waterproof, it is a size 9. SOFT is taste: curvy and structured, looks like JW Pei, youthful, warm toned.
+
+A new preference NEVER cancels a hard requirement. If someone asks for a laptop tote and then says they want something more like JW Pei, they want a laptop tote that looks like JW Pei. They do not want a small shoulder bag. A hard requirement only goes away when they say so, in words, and if a new preference genuinely cannot coexist with one, say that out loud and ask which they want rather than quietly dropping either.
+
+Before you call present, check every pick against every hard requirement. If a pick fails one, either leave it out or say plainly in its why that it fails. Never let a pick through that silently breaks a hard requirement; that is the single worst thing you can do here.
+
 HOW TO WORK.
 - You can call search_products more than once. Prefer two to four searches that attack the request from different angles over one broad search. Different colours, different garment types, different price bands.
 - Searches are keyword queries against a retail index. Write them the way a good shopper would type them: "peach chiffon maxi dress", not "a dress that suits warm colouring".
+- Carry every hard requirement into every search. A follow-up about style still searches for the capacity they asked for: "structured leather laptop tote 14 inch", not "cute curved shoulder bag".
 - Once you have enough, call present to show your shortlist. Say honestly which items miss, and what no option delivers.
 - You can only search retail products. There are no cars, property, services, travel, tickets or prescriptions in the index. If asked for those, just say so in conversation.
 
@@ -145,11 +155,22 @@ const TOOLS = [
             description:
               "One sentence on what NO option delivers, or omit if the request is fully met.",
           },
-          constraints: {
+          requirements: {
             type: "array",
             description:
-              "2-5 short labels for what you understood they need, including things you inferred rather than were told. For warm colouring that might be 'Warm pastels', not 'Pastels'.",
-            items: { type: "string" },
+              "The full running brief, not just this turn's additions. Every hard requirement from earlier in the conversation must still be here unless the shopper explicitly dropped it.",
+            items: {
+              type: "object",
+              properties: {
+                text: { type: "string", description: "Short label, 1-4 words, e.g. 'Fits 14in laptop'." },
+                hard: {
+                  type: "boolean",
+                  description:
+                    "true if an item failing this is useless to them (capacity, budget, size, waterproof). false for taste.",
+                },
+              },
+              required: ["text", "hard"],
+            },
           },
           refinements: {
             type: "array",
@@ -241,11 +262,21 @@ async function runAgent({
   message,
   memory = [],
   saved = [],
+  brief = [],
   maxRounds = 5,
 }) {
   // What it already knows walks in with it, rather than being re-derived from
   // the conversation every time.
   const context = [];
+  if (brief.length) {
+    const hard = brief.filter((r) => r.hard).map((r) => r.text);
+    const soft = brief.filter((r) => !r.hard).map((r) => r.text);
+    context.push(
+      "The running brief for this search. Carry it forward.\n" +
+        (hard.length ? `MUST satisfy: ${hard.join(", ")}.\n` : "") +
+        (soft.length ? `Prefers: ${soft.join(", ")}.` : ""),
+    );
+  }
   if (memory.length)
     context.push(`What you know about this shopper:\n- ${memory.slice(-30).join("\n- ")}`);
   if (saved.length)
@@ -312,6 +343,11 @@ async function runAgent({
         for (const p of pool.values())
           if (!used.has(p.id)) ordered.push({ ...p, fit: null, why: "" });
 
+        const reqs = (Array.isArray(args.requirements) ? args.requirements : [])
+          .map((r) => ({ text: str(r?.text, 32), hard: Boolean(r?.hard) }))
+          .filter((r) => r.text)
+          .slice(0, 8);
+
         return {
           mode: "results",
           message:
@@ -320,9 +356,8 @@ async function runAgent({
           gap: str(args.gap, 200) || null,
           products: ordered.slice(0, 24),
           reading: {
-            constraints: Array.isArray(args.constraints)
-              ? args.constraints.map((c) => str(c, 28)).filter(Boolean).slice(0, 5)
-              : [],
+            requirements: reqs,
+            constraints: reqs.map((r) => r.text),
             refinements: Array.isArray(args.refinements)
               ? args.refinements.map((r) => str(r, 28)).filter(Boolean).slice(0, 4)
               : [],
@@ -378,7 +413,7 @@ async function runAgent({
       message: "Here is what I turned up. Tell me what to change.",
       gap: null,
       products: products.slice(0, 24),
-      reading: { constraints: [], refinements: [] },
+      reading: { requirements: brief, constraints: brief.map((r) => r.text), refinements: [] },
       searches,
       memory: remembered,
     };

@@ -205,6 +205,8 @@ export default function App() {
           // one" and remember what it has been told. This used to send only
           // the user's lines, joined, with the assistant's side discarded.
           history: previous.slice(-12).map((m) => ({ role: m.role, text: m.text })),
+          // Sent back so hard requirements survive a follow-up about taste.
+          brief: options.fresh ? [] : options.brief || reading?.requirements || [],
         },
         token,
       );
@@ -453,6 +455,15 @@ export default function App() {
                 onSave={toggleSave}
                 onVisit={visit}
                 preferences={preferences}
+                onRelax={(text) => {
+                  const next = (reading?.requirements || []).filter(
+                    (r) => r.text !== text,
+                  );
+                  setReading({ ...(reading || {}), requirements: next,
+                    constraints: next.map((r) => r.text) });
+                  const last = messages.filter((m) => m.role === "user").at(-1)?.text;
+                  if (last) send(last, { retry: true, brief: next });
+                }}
               />
             )}
             {page === "discover" && (

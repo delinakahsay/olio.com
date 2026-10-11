@@ -53,7 +53,10 @@ test("the agent sees the exchange with roles, and its picks drive the order", as
                 "present",
                 {
                   message: "Peach and coral, since cool pastels fight warm colouring.",
-                  constraints: ["Warm pastels"],
+                  requirements: [
+                    { text: "Warm pastels", hard: false },
+                    { text: "Under $150", hard: true },
+                  ],
                   picks: [{ id: idOf("https://b.com/x"), fit: 90, why: "Peach chiffon" }],
                   gap: "Nothing under $50.",
                   refinements: ["Midi length"],
@@ -105,8 +108,13 @@ test("the agent sees the exchange with roles, and its picks drive the order", as
     // The pick leads, and its reasoning is attached.
     assert.equal(r.payload.products[0].why, "Peach chiffon");
     assert.equal(r.payload.products[0].fit, 90);
-    // Inferred constraints survive, not just stated ones.
-    assert.deepEqual(r.payload.reading.constraints, ["Warm pastels"]);
+    // Inferred constraints survive, not just stated ones, and hard
+    // requirements are marked so a later turn cannot quietly drop them.
+    assert.deepEqual(r.payload.reading.constraints, ["Warm pastels", "Under $150"]);
+    assert.deepEqual(
+      r.payload.reading.requirements.filter((q) => q.hard).map((q) => q.text),
+      ["Under $150"],
+    );
     assert(r.payload.summary.includes("Nothing under $50."));
   } finally {
     global.fetch = original;
