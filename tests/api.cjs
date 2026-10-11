@@ -5,6 +5,8 @@ dbForSearch.getUserByToken = async (token) => ({
   user: token === "valid" ? { id: "test" } : null,
 });
 const search = require("../api/search");
+const { stableId } = require("../api/agent");
+const idOf = (link) => stableId(link);
 async function call(
   handler,
   body,
@@ -27,142 +29,149 @@ async function call(
   );
   return { code, payload };
 }
-test("follow-up context reaches interpretation, strict budget holds, stable IDs survive", async () => {
+test("the agent sees the exchange with roles, and its picks drive the order", async () => {
   process.env.SERP_API_KEY = "test";
   process.env.OPENAI_API_KEY = "test";
   const original = global.fetch;
-  let prompt = "";
+  let sent = null;
+  const queries = [];
   global.fetch = async (url, options) => {
-    if (url.includes("openai")) {
-      const content = JSON.parse(options.body).messages[0].content;
-      if (content.includes("Earlier requests")) {
-        prompt = content;
-        return {
-          ok: true,
-          json: async () => ({
-            choices: [
-              {
-                message: {
-                  content: JSON.stringify({
-                    search_terms: "waterproof laptop tote",
-                    constraints: ["Waterproof"],
-                    max_price: 100,
-                    refinements: ["Lighter"],
-                  }),
+    if (String(url).includes("openai")) {
+      sent = JSON.parse(options.body);
+      // First turn: search twice. Second: present, citing the cheaper id.
+      const searched = sent.messages.some((m) => m.role === "tool");
+      const call = (name, args, id) => ({
+        id,
+        type: "function",
+        function: { name, arguments: JSON.stringify(args) },
+      });
+      const msg = searched
+        ? {
+            role: "assistant",
+            tool_calls: [
+              call(
+                "present",
+                {
+                  message: "Peach and coral, since cool pastels fight warm colouring.",
+                  constraints: ["Warm pastels"],
+                  picks: [{ id: idOf("https://b.com/x"), fit: 90, why: "Peach chiffon" }],
+                  gap: "Nothing under $50.",
+                  refinements: ["Midi length"],
                 },
-              },
+                "p1",
+              ),
             ],
-          }),
-        };
-      }
-      return {
-        ok: true,
-        json: async () => ({
-          choices: [
-            {
-              message: {
-                content:
-                  '{"verdicts":[{"i":0,"fit":80,"why":"Laptop-sized bag"}]}',
-              },
-            },
-          ],
-        }),
-      };
+          }
+        : {
+            role: "assistant",
+            tool_calls: [
+              call("search_products", { query: "peach chiffon dress" }, "s1"),
+              call("search_products", { query: "coral maxi dress" }, "s2"),
+            ],
+          };
+      return { ok: true, json: async () => ({ choices: [{ message: msg }] }) };
     }
-    assert(
-      new URL(url).searchParams.get("q").includes("waterproof laptop tote"),
-    );
+    queries.push(new URL(url).searchParams.get("q"));
     return {
       ok: true,
       json: async () => ({
         shopping_results: [
-          {
-            title: "Laptop tote",
-            price: "$60",
-            link: "https://example.com/tote",
-          },
-          {
-            title: "Luxury tote",
-            price: "$200",
-            link: "https://example.com/expensive",
-          },
+          { title: "Cheap", price: "$40", extracted_price: 40, link: "https://b.com/x" },
+          { title: "Dear", price: "$900", extracted_price: 900, link: "https://b.com/y" },
         ],
       }),
     };
   };
   try {
-    const a = await call(search, {
-      query: "Waterproof",
-      messages: ["A bag for class"],
-      priceMax: 100,
+    const r = await call(search, {
+      query: "something warm toned",
+      history: [
+        { role: "user", text: "a dress for a beach wedding" },
+        { role: "assistant", text: "What is your budget?" },
+      ],
     });
-    assert.equal(a.code, 200);
-    assert(prompt.includes("A bag for class"));
-    assert.equal(a.payload.products.length, 1);
-    const b = await call(search, {
-      query: "Waterproof",
-      messages: ["A bag for class"],
-      priceMax: 100,
-    });
-    assert.equal(a.payload.products[0].id, b.payload.products[0].id);
+    assert.equal(r.code, 200);
+    assert.equal(r.payload.mode, "results");
+    // Both sides of the exchange reach the model, as roles not a joined string.
+    const roles = sent.messages.map((m) => m.role);
+    assert(roles.includes("system") && roles.includes("assistant"));
+    assert(
+      sent.messages.some(
+        (m) => m.role === "assistant" && m.content === "What is your budget?",
+      ),
+    );
+    // It searched more than once, from different angles.
+    assert.equal(queries.length, 2);
+    // The pick leads, and its reasoning is attached.
+    assert.equal(r.payload.products[0].why, "Peach chiffon");
+    assert.equal(r.payload.products[0].fit, 90);
+    // Inferred constraints survive, not just stated ones.
+    assert.deepEqual(r.payload.reading.constraints, ["Warm pastels"]);
+    assert(r.payload.summary.includes("Nothing under $50."));
   } finally {
     global.fetch = original;
   }
 });
-test("no model key preserves context and search fallback", async () => {
-  delete process.env.OPENAI_API_KEY;
+test("conversation is answered, not searched", async () => {
+  process.env.SERP_API_KEY = "test";
+  process.env.OPENAI_API_KEY = "test";
   const original = global.fetch;
+  let searches = 0;
   global.fetch = async (url) => {
-    const q = new URL(url).searchParams.get("q");
-    assert(q.includes("laptop bag"));
-    assert(q.includes("waterproof"));
+    if (String(url).includes("openai"))
+      return {
+        ok: true,
+        json: async () => ({
+          choices: [{ message: { role: "assistant", content: "10." } }],
+        }),
+      };
+    searches += 1;
     return { ok: true, json: async () => ({ shopping_results: [] }) };
   };
   try {
-    const r = await call(search, {
-      query: "waterproof",
-      messages: ["laptop bag"],
-    });
-    assert.equal(r.code, 200);
-    assert.deepEqual(r.payload.products, []);
+    const r = await call(search, { query: "what is 5+5" });
+    assert.equal(r.payload.mode, "chat");
+    assert.equal(r.payload.summary, "10.");
+    assert.equal(searches, 0);
+    // null, not [], so the client keeps whatever is already on screen.
+    assert.equal(r.payload.products, null);
   } finally {
     global.fetch = original;
   }
 });
-test("model failure keeps product search working; upstream errors do not leak", async () => {
+test("without a model key it refuses rather than degrading to keyword search", async () => {
+  // Reasoning is the product. Silently becoming a worse search engine is the
+  // same failure mode as silently writing accounts to /tmp.
+  const saved = process.env.OPENAI_API_KEY;
+  delete process.env.OPENAI_API_KEY;
+  const original = global.fetch;
+  let searches = 0;
+  global.fetch = async () => {
+    searches += 1;
+    return { ok: true, json: async () => ({ shopping_results: [] }) };
+  };
+  try {
+    const r = await call(search, { query: "a lamp" });
+    assert.equal(r.code, 500);
+    assert.match(r.payload.error, /OPENAI_API_KEY/);
+    assert.equal(searches, 0);
+  } finally {
+    global.fetch = original;
+    process.env.OPENAI_API_KEY = saved;
+  }
+});
+test("upstream failure detail never reaches the shopper", async () => {
+  process.env.SERP_API_KEY = "test";
   process.env.OPENAI_API_KEY = "test";
   const original = global.fetch;
   global.fetch = async (url) =>
-    url.includes("openai")
-      ? { ok: false }
-      : {
-          ok: true,
-          json: async () => ({
-            shopping_results: [
-              { title: "Lamp", price: "$30", link: "https://example.com/lamp" },
-            ],
-          }),
-        };
+    String(url).includes("openai")
+      ? { ok: false, status: 500, text: async () => "internal-provider-detail" }
+      : { ok: true, json: async () => ({ shopping_results: [] }) };
   try {
-    let r = await call(search, { query: "lamp" });
-    assert.equal(r.payload.products.length, 1);
-    global.fetch = async (url) =>
-      url.includes("openai")
-        ? { ok: false }
-        : {
-            ok: false,
-            status: 500,
-            text: async () => "internal-provider-detail",
-          };
-    const log = console.error;
-    console.error = () => {};
-    try {
-      r = await call(search, { query: "lamp" });
-      assert.equal(r.code, 500);
-      assert(!r.payload.error.includes("internal-provider-detail"));
-    } finally {
-      console.error = log;
-    }
+    const r = await call(search, { query: "lamp" });
+    assert.equal(r.code, 500);
+    assert(!JSON.stringify(r.payload).includes("internal-provider-detail"));
   } finally {
     global.fetch = original;
   }

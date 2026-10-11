@@ -201,24 +201,26 @@ export default function App() {
         {
           query: text.trim(),
           ...lastParams.current,
-          messages: next
-            .filter((m) => m.role === "user")
-            .slice(0, -1)
-            .slice(-8)
-            .map((m) => m.text),
+          // The whole exchange with roles, so the agent can resolve "the blue
+          // one" and remember what it has been told. This used to send only
+          // the user's lines, joined, with the assistant's side discarded.
+          history: previous.slice(-12).map((m) => ({ role: m.role, text: m.text })),
         },
         token,
       );
       if (id !== requestId.current) return;
-      const products = data.products || [];
+      // null products means the agent decided this was conversation, not a
+      // search. Keep whatever is on screen instead of blanking the shortlist.
+      const searched = Array.isArray(data.products);
+      const products = searched ? data.products : results;
       const response =
         data.summary ||
         (products.length
           ? `I found ${products.length} options to explore. Tell me what you’d like to change.`
           : "I couldn’t find a match this time. Try a broader description or a different budget.");
       const complete = [...next, { role: "assistant", text: response }];
-      setResults(products);
-      setReading(data.reading || null);
+      if (searched) setResults(data.products);
+      if (searched || data.reading) setReading(data.reading || null);
       setMessages(complete);
       setConversations((rows) =>
         [
