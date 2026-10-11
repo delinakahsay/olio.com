@@ -11,7 +11,12 @@ import Icon from "./components/Icon.jsx";
 import { useLocal, readLocal } from "./hooks/useLocal.js";
 import { isValidHttpUrl, fallbackSearchLink } from "./utils.js";
 
-const getRoute = () => window.location.hash.replace(/^#\/?/, "") || "chat";
+// Routes that merged into another page. Old links and bookmarks still land.
+const REDIRECTS = { "account/personal": "account/profile" };
+const getRoute = () => {
+  const raw = window.location.hash.replace(/^#\/?/, "") || "chat";
+  return REDIRECTS[raw] || raw;
+};
 export default function App() {
   const [page, setPage] = useState(getRoute);
   const [token, setToken] = useState(

@@ -40,24 +40,25 @@ export default function Chat({
   }
   return (
     <>
-      <div className="page-heading chat-heading">
-        <h1>Let’s find your kind of thing.</h1>
-      </div>
       <div className="shopping-workspace">
         <section
-          className="chat-panel surface"
+          className={
+            "chat-panel surface" + (messages.length ? "" : " is-empty")
+          }
           aria-label="Shopping conversation"
         >
-          <div className="panel-heading">
-            <h2>Your shopping conversation</h2>
-            <button
-              className="text-button small"
-              onClick={onReset}
-              disabled={loading}
-            >
-              <Icon name="reset" /> New search
-            </button>
-          </div>
+          {/* Only offer "New search" once there is something to clear. */}
+          {messages.length > 0 && (
+            <div className="panel-heading">
+              <button
+                className="text-button small"
+                onClick={onReset}
+                disabled={loading}
+              >
+                <Icon name="reset" /> New search
+              </button>
+            </div>
+          )}
           <div
             className="message-feed"
             ref={feed}
@@ -65,33 +66,9 @@ export default function Chat({
             aria-live="polite"
           >
             {!messages.length && (
-              <div className="welcome">
-                <span className="eyebrow">A little particular? Perfect.</span>
-                <h2>
-                  What do you have
-                  <br />
-                  in mind?
-                </h2>
-                <p>
-                  Tell me what you’re looking for, what you’d like to spend, and
-                  the details that matter to you.
-                </p>
-                <div className="starter-list">
-                  {[
-                    "A bag for class that fits my laptop",
-                    "A lamp for a small desk",
-                    "Headphones for my daily commute",
-                  ].map((q) => (
-                    <button
-                      key={q}
-                      onClick={() => onSend(q, { category, priceMax: budget })}
-                    >
-                      {q}
-                      <Icon name="arrow" />
-                    </button>
-                  ))}
-                </div>
-              </div>
+              // One line, then the composer. Suggestions come back when they
+              // can be drawn from what someone has actually looked at.
+              <p className="welcome-line">What do you have in mind?</p>
             )}
             {messages.map((m, i) => (
               <div key={i} className={"message " + m.role}>
@@ -160,6 +137,39 @@ export default function Chat({
                   }
                 }}
               />
+            </div>
+            {/* Controls live on the composer, not in a row beneath it, so the
+                input reads as one object the way Claude's and GPT's do. */}
+            <div className="composer-bar">
+              <div className="composer-filters">
+                <label>
+                  <span className="sr-only">Maximum budget</span>
+                  <select
+                    value={budget}
+                    onChange={(e) => setBudget(e.target.value)}
+                  >
+                    <option value="">Any budget</option>
+                    {[25, 50, 100, 200, 500].map((n) => (
+                      <option key={n} value={n}>
+                        Under ${n}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  <span className="sr-only">Category</span>
+                  <select
+                    value={category}
+                    onChange={(e) => setCategory(e.target.value)}
+                  >
+                    <option value="">All categories</option>
+                    <option value="clothing">Clothing & bags</option>
+                    <option value="home">Home</option>
+                    <option value="electronics">Tech</option>
+                    <option value="beauty">Beauty</option>
+                  </select>
+                </label>
+              </div>
               <button
                 className="send-button"
                 aria-label="Send message"
@@ -167,35 +177,6 @@ export default function Chat({
               >
                 <Icon name="send" />
               </button>
-            </div>
-            <div className="composer-filters">
-              <label>
-                <span className="sr-only">Maximum budget</span>
-                <select
-                  value={budget}
-                  onChange={(e) => setBudget(e.target.value)}
-                >
-                  <option value="">Budget: Any</option>
-                  {[25, 50, 100, 200, 500].map((n) => (
-                    <option key={n} value={n}>
-                      Under ${n}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                <span className="sr-only">Category</span>
-                <select
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value)}
-                >
-                  <option value="">All categories</option>
-                  <option value="clothing">Clothing & bags</option>
-                  <option value="home">Home</option>
-                  <option value="electronics">Tech</option>
-                  <option value="beauty">Beauty</option>
-                </select>
-              </label>
             </div>
           </form>
         </section>
@@ -260,19 +241,13 @@ export default function Chat({
                 ))}
               </div>
               <div className="shortlist-note">
-                <h2>
+                {/* One line here too. A heading, a paragraph and a footnote
+                    for an empty panel was three taglines for no content. */}
+                <p className="empty-line">
                   {messages.length
-                    ? "Let’s try another angle."
-                    : "The details make the difference."}
-                </h2>
-                <p>
-                  {messages.length
-                    ? "Try a broader description or a different budget."
-                    : "Start with an idea. Your shortlist will appear here, and we can narrow it down together."}
+                    ? "Nothing matched. Try a broader description or a different budget."
+                    : "Your shortlist will appear here."}
                 </p>
-                <span className="subtle">
-                  Inspiration images, not product listings.
-                </span>
               </div>
             </>
           )}

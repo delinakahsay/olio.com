@@ -1,9 +1,10 @@
 import { useState } from "react";
 import Icon from "./Icon.jsx";
 import { isValidHttpUrl, fallbackSearchLink } from "../utils.js";
+// "Profile" and "Personal info" rendered the same form with a different
+// heading. Nothing here is public, so there is no audience to split on.
 const sections = [
   ["profile", "Profile"],
-  ["personal", "Personal info"],
   ["history", "Shopping history"],
   ["appearance", "Appearance"],
   ["preferences", "Shopping preferences"],
@@ -119,6 +120,23 @@ export default function Account({
             </span>
             <h2>{displayName}</h2>
           </div>
+          {/* Phones get a dropdown. Wrapped into pills, eight links read as
+              filter chips rather than navigation. */}
+          <label className="section-picker">
+            <span className="sr-only">Account section</span>
+            <select
+              value={section}
+              onChange={(e) => {
+                window.location.hash = "/account/" + e.target.value;
+              }}
+            >
+              {sections.map(([id, label]) => (
+                <option key={id} value={id}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </label>
           <nav aria-label="Account settings">
             {sections.map(([id, label]) => (
               <a
@@ -137,11 +155,9 @@ export default function Account({
           )}
         </aside>
         <section className="settings-content surface">
-          {["profile", "personal"].includes(section) && (
+          {section === "profile" && (
             <form onSubmit={save}>
-              <h2>
-                {section === "profile" ? "Your profile" : "Personal info"}
-              </h2>
+              <h2>Your profile</h2>
               <p className="subtle">
                 {profile
                   ? "Your name syncs with your account. Other preferences stay on this browser."
@@ -155,26 +171,8 @@ export default function Account({
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
                 />
               </label>
-              <div className="form-grid">
-                <label>
-                  First name
-                  <input
-                    value={form.first || ""}
-                    maxLength={80}
-                    onChange={(e) =>
-                      setForm({ ...form, first: e.target.value })
-                    }
-                  />
-                </label>
-                <label>
-                  Last name
-                  <input
-                    value={form.last || ""}
-                    maxLength={80}
-                    onChange={(e) => setForm({ ...form, last: e.target.value })}
-                  />
-                </label>
-              </div>
+              {/* First and Last were written to storage and read by nothing.
+                  Display name is the only name the app ever shows. */}
               {profile && (
                 <label>
                   Email

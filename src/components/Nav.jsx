@@ -40,6 +40,9 @@ export default function Nav({
         olio
       </a>
       <nav aria-label="Main">
+        {/* The shopping surface is where the wordmark points, so it needs a
+            label of its own rather than being reachable only by the logo. */}
+        {link("chat", "Find")}
         {link("discover", "Discover")}
         {link("about", "About")}
       </nav>
