@@ -268,19 +268,22 @@ a:hover {
   color: var(--accent);
   line-height: 1;
   display: inline-flex;
-  align-items: center;
-  gap: 11px;
+  align-items: baseline;
+  gap: 0.02em;
 }
-/* Masked so the mark takes currentColor. It is deliberately drawn in the
-   page ink rather than the accent, because the accent is the user's to
-   change and a wine mark would clash with a Midnight theme. */
+/* The mark stands in for the capital O, so it is sized and seated like a
+   letter rather than an icon beside one. Masked so it takes currentColor:
+   it is drawn in the accent here because in the wordmark it IS the word. */
 .wordmark-mark {
-  width: 32px;
-  height: 32px;
+  width: 0.695em;
+  height: 0.752em;
   flex: none;
-  background: var(--ink);
-  -webkit-mask: url("/brand/olio-mark-32.svg") center / contain no-repeat;
-  mask: url("/brand/olio-mark-32.svg") center / contain no-repeat;
+  align-self: center;
+  position: relative;
+  top: 0.015em;
+  background: currentColor;
+  -webkit-mask: url("/brand/olio-o.svg") center / contain no-repeat;
+  mask: url("/brand/olio-o.svg") center / contain no-repeat;
 }
 .site-header nav {
   display: flex;
@@ -1500,13 +1503,6 @@ main {
   }
   .wordmark {
     font-size: 30px;
-    gap: 8px;
-  }
-  .wordmark-mark {
-    width: 24px;
-    height: 24px;
-    -webkit-mask-image: url("/brand/olio-mark-32.svg");
-    mask-image: url("/brand/olio-mark-32.svg");
   }
   .site-header nav {
     gap: 14px;
