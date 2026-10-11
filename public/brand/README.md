@@ -4,20 +4,26 @@ Two assets, because they do different jobs and one cannot become the other.
 
 ## The field  `olio-field.svg`
 
-160 long curves. Each is tangent to the same upright O and sweeps past it on
-both sides, so the curves overlap everywhere and the counter is the only space
-nothing touches. Incongruent lines arriving from every direction, one form in
-the middle, which is what olio means.
+Ribbons, not single lines. Nine arms of 64 near-parallel strands each, plus a
+second pass of five arms that wrap further and stay close to the counter. The
+moire comes from sheets crossing sheets; single chords only ever looked spiky.
 
-Hero and print at full density, 150px and up. The About page carries it at
-190px, which is the smallest size the full 160 lines still read as lines
-rather than a halo.
+Each strand is a spiral that flares wide at the tip and eases in until it hugs
+the O. Within an arm the start angle, the turn and the tip radius all drift,
+so the strands fan into a sheet. The tip radius peaks mid-ribbon rather than
+varying linearly, which is what tapers each arm to a point instead of cutting
+it off flat.
 
-It does not CROP. The lines are densest exactly at the O, so cropping in lands
-on the blackest part of the drawing. But it does scale: reduce the line count
-instead of the frame and it survives to about 40px. `olio-mark.svg` (16 lines)
-is the header tier, `olio-mark-mid.svg` (24 lines) covers 56 to 96px. Below
-roughly 40px nothing survives and the drawn O takes over.
+Incongruent things arriving from every direction, one form in the middle,
+which is what olio means.
+
+Weight: 274KB raw, 72KB gzipped. Heavy for an SVG, cheap for a hero image,
+and it caches. Do not inline it.
+
+Hero and print, 100px and up. The About page carries it at 190px.
+
+It holds down to roughly 100px. Below that the arms merge and the counter
+closes; the glyph or the drawn O takes over.
 
 ## The mark  `olio-o.svg`
 
@@ -31,16 +37,15 @@ as a logo.
 
 ## The glyph  `olio-glyph.svg`
 
-The mark standing in for the first o of the wordmark. Same construction, but
-the chords are short (l=21 against the field's 44), which pulls the halo in
-tight around the counter so the whole thing is letter-proportioned. With the
-field's long chords the counter is a third the width of the glyph and it reads
-as a star parked next to a word.
+The mark standing in for the first o of the wordmark. Same ribbon
+construction, far fewer strands (11 arms of 14, plus a 5-arm core) and much
+shorter arms, so the halo stays tight enough around the counter to set as a
+letter. 56KB raw, 14KB gzipped.
 
-Seating it: the box is 100 units wide and the counter is 35 of them, so the
-box has to be roughly 2em for the counter to sit at letter height, with
-negative margins pulling the neighbouring letters back under the spikes.
-Mobile drops to 1.72em or the spikes clip against the 80px header.
+Seating it: 1.62em with negative margins pulling the neighbouring letters back
+in under the halo. That overlap is what makes it read as a letter rather than
+a logo with a word after it. Mobile drops to 1.52em in a 26px wordmark; at the
+desktop ratio it clips against the 80px header.
 
 Adding a few of the field's chords to it was tried and rejected: at every size
 it reads as a struck-through O rather than a swept one.

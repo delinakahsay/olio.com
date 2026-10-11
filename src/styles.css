@@ -277,10 +277,10 @@ a:hover {
    back in under the spikes, which is what makes it read as a letter rather
    than a logo with a word after it. */
 .wordmark-mark {
-  width: 1.95em;
-  height: 1.95em;
+  width: 1.62em;
+  height: 1.62em;
   flex: none;
-  margin: 0 -0.40em 0 -0.34em;
+  margin: 0 -0.26em 0 -0.22em;
   background: currentColor;
   -webkit-mask: url("/brand/olio-glyph.svg") center / contain no-repeat;
   mask: url("/brand/olio-glyph.svg") center / contain no-repeat;
@@ -1519,9 +1519,9 @@ main {
   /* The header is only 80px here, so the glyph box has to come in or the
      spikes clip against the edges and crowd the nav. */
   .wordmark-mark {
-    width: 1.72em;
-    height: 1.72em;
-    margin: 0 -0.34em 0 -0.30em;
+    width: 1.52em;
+    height: 1.52em;
+    margin: 0 -0.22em 0 -0.19em;
   }
   .site-header nav {
     gap: 14px;
