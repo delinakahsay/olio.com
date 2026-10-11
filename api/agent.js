@@ -56,7 +56,9 @@ HARD is a fact the item must satisfy or it is useless to them: it fits a 14 inch
 
 A new preference NEVER cancels a hard requirement. If someone asks for a laptop tote and then says they want something more like JW Pei, they want a laptop tote that looks like JW Pei. They do not want a small shoulder bag. A hard requirement only goes away when they say so, in words, and if a new preference genuinely cannot coexist with one, say that out loud and ask which they want rather than quietly dropping either.
 
-Before you call present, check every pick against every hard requirement. If a pick fails one, either leave it out or say plainly in its why that it fails. Never let a pick through that silently breaks a hard requirement; that is the single worst thing you can do here.
+Mark a requirement HARD whenever it carries a measurement, a price, a size or a capability: "fits a 14 inch laptop", "under $100", "size 9", "waterproof". When in doubt, hard. Treating a real requirement as taste is far worse than the reverse.
+
+Before you call present, check every pick against every hard requirement. The why for each pick must speak to the hard ones, not only to taste: if the brief says it must fit a 14 inch laptop, every why says whether it does. If a pick fails a hard requirement, either leave it out or say so plainly in its why. A small top-handle bag presented against a laptop requirement, with a why that only mentions style, is the single worst thing you can do here.
 
 HOW TO WORK.
 - You can call search_products more than once. Prefer two to four searches that attack the request from different angles over one broad search. Different colours, different garment types, different price bands.
@@ -144,7 +146,7 @@ const TOOLS = [
                 why: {
                   type: "string",
                   description:
-                    "Max 12 words on why it fits or where it misses. Be concrete: name the colour, the material, the rating.",
+                    "Max 14 words. Must address every hard requirement, not just taste: say whether it meets each one or which it fails. Be concrete: name the colour, the capacity, the rating.",
                 },
               },
               required: ["id", "fit", "why"],
@@ -183,6 +185,26 @@ const TOOLS = [
     },
   },
 ];
+
+// The model under-marks hard requirements: it labelled "Fits 14 inch laptop"
+// as taste. Anything carrying a measurement, a price ceiling, a size or a
+// capability word is a fact the item either satisfies or does not, so the
+// server forces it hard regardless of what the model said. Model proposes,
+// this enforces a floor.
+const HARD_PATTERNS = [
+  /\d\s*(?:"|''|in\b|inch|cm\b|mm\b|ml\b|l\b|oz\b|lb\b|kg\b|g\b)/i,
+  /\$\s*\d|\bunder\s|\bover\s|\bbudget\b|\bmax\b|\bmin\b/i,
+  /\bfits?\b|\bholds?\b|\bcarries\b|\bcapacity\b/i,
+  /\bsize\b|\bus\s?\d|\bpetite\b|\btall\b|\bplus\s?size\b|\bwide\b|\bnarrow\b/i,
+  /waterproof|water.resistant|washable|dishwasher|microwave|wireless|cordless|rechargeable|gluten|vegan|fragrance.free|hypoallergenic/i,
+];
+function hardenRequirements(reqs) {
+  return reqs.map((r) =>
+    r.hard || HARD_PATTERNS.some((re) => re.test(r.text))
+      ? { ...r, hard: true }
+      : r,
+  );
+}
 
 function mapProduct(item) {
   const title = item.title || "Product";
@@ -343,10 +365,12 @@ async function runAgent({
         for (const p of pool.values())
           if (!used.has(p.id)) ordered.push({ ...p, fit: null, why: "" });
 
-        const reqs = (Array.isArray(args.requirements) ? args.requirements : [])
-          .map((r) => ({ text: str(r?.text, 32), hard: Boolean(r?.hard) }))
-          .filter((r) => r.text)
-          .slice(0, 8);
+        const reqs = hardenRequirements(
+          (Array.isArray(args.requirements) ? args.requirements : [])
+            .map((r) => ({ text: str(r?.text, 32), hard: Boolean(r?.hard) }))
+            .filter((r) => r.text)
+            .slice(0, 8),
+        );
 
         return {
           mode: "results",
