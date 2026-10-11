@@ -18,8 +18,10 @@ module.exports = async function handler(req, res) {
 
   const authorization = req.headers?.authorization || "";
   const token = authorization.startsWith("Bearer ") ? authorization.slice(7) : "";
+  let user = null;
   try {
-    if (!token || !(await db.getUserByToken(token)).user) {
+    user = (await db.getUserByToken(token)).user;
+    if (!token || !user) {
       return res.status(401).json({ error: "Sign in to start shopping with Olio." });
     }
   } catch {
@@ -78,7 +80,21 @@ module.exports = async function handler(req, res) {
       model: MODEL,
       history,
       message,
+      memory: Array.isArray(user.memory) ? user.memory : [],
+      saved: Array.isArray(user.savedItems) ? user.savedItems : [],
     });
+
+    // Persist only when the agent actually added something. Capped so a long
+    // relationship cannot turn the column into a transcript.
+    const before = Array.isArray(user.memory) ? user.memory : [];
+    if (out.memory && out.memory.length > before.length) {
+      try {
+        await db.updateUser(user.id, { memory: out.memory.slice(-40) });
+      } catch (err) {
+        // Memory is a nicety. A failure here must not cost them the search.
+        console.error("Could not save memory:", err.message);
+      }
+    }
 
     return res.status(200).json({
       mode: out.mode,

@@ -147,6 +147,8 @@ function fromRow(row) {
     savedItems: row.saved_items || [],
     cart: row.cart || [],
     orders: row.orders || [],
+    // Durable shopping preferences the agent has been told.
+    memory: Array.isArray(row.memory) ? row.memory : [],
     createdAt: row.created_at || null,
   };
 }
@@ -161,6 +163,7 @@ function toRow(user) {
   if (user.savedItems !== undefined) row.saved_items = user.savedItems;
   if (user.cart !== undefined) row.cart = user.cart;
   if (user.orders !== undefined) row.orders = user.orders;
+  if (user.memory !== undefined) row.memory = user.memory;
   if (user.createdAt !== undefined) row.created_at = user.createdAt;
   return row;
 }

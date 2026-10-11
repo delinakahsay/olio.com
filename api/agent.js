@@ -59,12 +59,35 @@ WHEN NOT TO SEARCH.
 If the person is chatting, asking you a question, answering one of yours, or saying something that is not a shopping request, just reply. Do not search. Do not call present. "What is 5+5" gets "10", not a grid of dresses.
 
 GETTING TO KNOW THEM.
-Ask a short, specific question when one answer would genuinely change what you look for, and you cannot reasonably guess. Never ask more than one at a time, and never ask what you could infer. Remember what they tell you within the conversation and apply it without being asked again.
+Ask a short, specific question when one answer would genuinely change what you look for, and you cannot reasonably guess. Never ask more than one at a time, and never ask what you could infer.
+
+When they tell you something that will still be true next month, call remember once. Their colouring, their sizes, a style or material they love or cannot wear, a brand they trust, the budget they keep landing on. Do not remember one-off needs, do not remember what you merely guessed, and do not remember anything about their health, money or identity. Never announce that you saved something; just use it.
+
+If you have been given things they saved before, treat those as evidence of taste rather than instructions. Three linen pieces means they like linen.
 
 TONE.
 Warm, concise, specific. No bullet lists in replies. Never say "I found some options for you". Say what you went looking for and why, in a sentence or two.`;
 
 const TOOLS = [
+  {
+    type: "function",
+    function: {
+      name: "remember",
+      description:
+        "Save one durable shopping preference about this shopper, so future conversations start knowing it. Only for things that stay true: colouring, sizes, styles they like or avoid, brands, materials they react to, a recurring budget. Never for one-off needs ('a dress for Saturday'), and never for health, finances, identity or anything they did not plainly state.",
+      parameters: {
+        type: "object",
+        properties: {
+          fact: {
+            type: "string",
+            description:
+              "One short sentence in the third person, e.g. 'Leans warm in colouring, avoids cool pastels.'",
+          },
+        },
+        required: ["fact"],
+      },
+    },
+  },
   {
     type: "function",
     function: {
@@ -210,14 +233,40 @@ async function callModel(key, model, messages, timeout) {
  * One turn. Returns either a chat reply or a shortlist, because the model
  * decides which this was.
  */
-async function runAgent({ openaiKey, serpKey, model, history, message, maxRounds = 5 }) {
+async function runAgent({
+  openaiKey,
+  serpKey,
+  model,
+  history,
+  message,
+  memory = [],
+  saved = [],
+  maxRounds = 5,
+}) {
+  // What it already knows walks in with it, rather than being re-derived from
+  // the conversation every time.
+  const context = [];
+  if (memory.length)
+    context.push(`What you know about this shopper:\n- ${memory.slice(-30).join("\n- ")}`);
+  if (saved.length)
+    context.push(
+      `Things they have saved before, which show their taste:\n- ${saved
+        .slice(-15)
+        .map((p) => [p.title, p.price].filter(Boolean).join(" — "))
+        .join("\n- ")}`,
+    );
+
   const messages = [
     { role: "system", content: SYSTEM },
+    ...(context.length
+      ? [{ role: "system", content: context.join("\n\n") }]
+      : []),
     ...history.slice(-12),
     { role: "user", content: message },
   ];
   const pool = new Map();
   const searches = [];
+  const remembered = [...memory];
 
   for (let round = 0; round < maxRounds; round++) {
     const reply = await callModel(openaiKey, model, messages, 30000);
@@ -231,6 +280,7 @@ async function runAgent({ openaiKey, serpKey, model, history, message, maxRounds
         message: str(reply.content, 1200) || "Tell me a bit more and I'll look.",
         products: null,
         searches,
+        memory: remembered,
       };
     }
 
@@ -278,7 +328,22 @@ async function runAgent({ openaiKey, serpKey, model, history, message, maxRounds
               : [],
           },
           searches,
+          memory: remembered,
         };
+      }
+
+      if (call.function.name === "remember") {
+        const fact = str(args.fact, 160);
+        // Deduped case-insensitively, and capped, so this cannot grow into a
+        // transcript. It is a short profile, not a log.
+        const known = remembered.map((m) => m.toLowerCase());
+        if (fact && !known.includes(fact.toLowerCase())) remembered.push(fact);
+        messages.push({
+          role: "tool",
+          tool_call_id: call.id,
+          content: fact ? "Saved." : "Nothing to save.",
+        });
+        continue;
       }
 
       if (call.function.name === "search_products") {
@@ -315,6 +380,7 @@ async function runAgent({ openaiKey, serpKey, model, history, message, maxRounds
       products: products.slice(0, 24),
       reading: { constraints: [], refinements: [] },
       searches,
+      memory: remembered,
     };
   }
   return {
@@ -322,6 +388,7 @@ async function runAgent({ openaiKey, serpKey, model, history, message, maxRounds
     message: "I could not get that one. Try saying it a different way.",
     products: null,
     searches,
+    memory: remembered,
   };
 }
 
