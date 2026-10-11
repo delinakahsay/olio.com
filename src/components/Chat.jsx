@@ -2,17 +2,17 @@ import { useEffect, useRef, useState } from "react";
 import Icon from "./Icon.jsx";
 import ProductCard from "./ProductCard.jsx";
 import { Inspiration, inspirations } from "./Discover.jsx";
-// The one line on an empty conversation. Uses a first name when there is
-// one, because "Evening, Delina" is warmer than a question and costs the
-// same single line.
-function greeting(profile) {
-  const first = String(profile?.name || "")
-    .trim()
-    .split(/\s+/)[0];
-  const hour = new Date().getHours();
-  const part = hour < 12 ? "Morning" : hour < 18 ? "Afternoon" : "Evening";
-  return first ? `${part}, ${first}.` : "What do you have in mind?";
-}
+// The one line on an empty conversation. Not a greeting: Olio is a place you
+// shop, not someone you say good evening to. Each line gives permission to be
+// vague, which is the premise of the whole product.
+const OPENERS = [
+  "Describe it however it comes out.",
+  "Tell me the thing you can’t quite find.",
+  "Start anywhere. We’ll narrow it.",
+  "What’s the thing?",
+];
+// Chosen once per mount, so it varies between visits but never mid-session.
+const opener = OPENERS[Math.floor(Math.random() * OPENERS.length)];
 export default function Chat({
   messages,
   results,
@@ -25,7 +25,6 @@ export default function Chat({
   onSave,
   onVisit,
   preferences,
-  profile,
 }) {
   const [draft, setDraft] = useState("");
   const [category, setCategory] = useState(preferences.category || "");
@@ -80,7 +79,7 @@ export default function Chat({
             {!messages.length && (
               // One line, then the composer. Suggestions come back when they
               // can be drawn from what someone has actually looked at.
-              <p className="welcome-line">{greeting(profile)}</p>
+              <p className="welcome-line">{opener}</p>
             )}
             {messages.map((m, i) => (
               <div key={i} className={"message " + m.role}>

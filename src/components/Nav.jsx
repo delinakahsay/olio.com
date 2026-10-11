@@ -37,7 +37,10 @@ export default function Nav({
   return (
     <header className="site-header">
       <a className="wordmark" href="#/chat" aria-label="Olio home">
-        olio
+        {/* Masked rather than an <img>, so the mark takes the page ink. An
+            img is its own document and could not inherit currentColor. */}
+        <span className="wordmark-mark" aria-hidden="true" />
+        <span>olio</span>
       </a>
       <nav aria-label="Main">
         {/* The shopping surface is where the wordmark points, so it needs a

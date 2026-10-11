@@ -267,6 +267,20 @@ a:hover {
   letter-spacing: -4px;
   color: var(--accent);
   line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 11px;
+}
+/* Masked so the mark takes currentColor. It is deliberately drawn in the
+   page ink rather than the accent, because the accent is the user's to
+   change and a wine mark would clash with a Midnight theme. */
+.wordmark-mark {
+  width: 32px;
+  height: 32px;
+  flex: none;
+  background: var(--ink);
+  -webkit-mask: url("/brand/olio-mark-32.svg") center / contain no-repeat;
+  mask: url("/brand/olio-mark-32.svg") center / contain no-repeat;
 }
 .site-header nav {
   display: flex;
@@ -1486,6 +1500,13 @@ main {
   }
   .wordmark {
     font-size: 30px;
+    gap: 8px;
+  }
+  .wordmark-mark {
+    width: 24px;
+    height: 24px;
+    -webkit-mask-image: url("/brand/olio-mark-32.svg");
+    mask-image: url("/brand/olio-mark-32.svg");
   }
   .site-header nav {
     gap: 14px;
