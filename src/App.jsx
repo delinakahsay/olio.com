@@ -444,6 +444,7 @@ export default function App() {
                 onSave={toggleSave}
                 onVisit={visit}
                 preferences={preferences}
+                profile={profile}
               />
             )}
             {page === "discover" && (

@@ -498,13 +498,27 @@ main {
   color: var(--muted);
   max-width: 330px;
 }
+/* An empty conversation centres its one line. Bottom-anchoring is right
+   once messages are stacking up, but on a blank panel it leaves a single
+   large void above that reads as a loading failure rather than calm. */
 .chat-panel.is-empty .message-feed {
   display: flex;
   flex-direction: column;
-  justify-content: flex-end;
-  min-height: 190px;
-  padding-bottom: 14px;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  min-height: 0;
+  flex: 0 0 auto;
+  padding-bottom: 18px;
   overflow: visible;
+}
+/* Centre the line and the composer as one group, so the empty space is
+   shared above and below instead of piling up in one block. */
+.chat-panel.is-empty {
+  justify-content: center;
+}
+.chat-panel.is-empty .composer {
+  width: 100%;
 }
 .shortlist {
   padding: 26px 24px;

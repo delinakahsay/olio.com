@@ -2,6 +2,17 @@ import { useEffect, useRef, useState } from "react";
 import Icon from "./Icon.jsx";
 import ProductCard from "./ProductCard.jsx";
 import { Inspiration, inspirations } from "./Discover.jsx";
+// The one line on an empty conversation. Uses a first name when there is
+// one, because "Evening, Delina" is warmer than a question and costs the
+// same single line.
+function greeting(profile) {
+  const first = String(profile?.name || "")
+    .trim()
+    .split(/\s+/)[0];
+  const hour = new Date().getHours();
+  const part = hour < 12 ? "Morning" : hour < 18 ? "Afternoon" : "Evening";
+  return first ? `${part}, ${first}.` : "What do you have in mind?";
+}
 export default function Chat({
   messages,
   results,
@@ -14,6 +25,7 @@ export default function Chat({
   onSave,
   onVisit,
   preferences,
+  profile,
 }) {
   const [draft, setDraft] = useState("");
   const [category, setCategory] = useState(preferences.category || "");
@@ -68,7 +80,7 @@ export default function Chat({
             {!messages.length && (
               // One line, then the composer. Suggestions come back when they
               // can be drawn from what someone has actually looked at.
-              <p className="welcome-line">What do you have in mind?</p>
+              <p className="welcome-line">{greeting(profile)}</p>
             )}
             {messages.map((m, i) => (
               <div key={i} className={"message " + m.role}>
