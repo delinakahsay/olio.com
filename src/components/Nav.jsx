@@ -37,11 +37,11 @@ export default function Nav({
   return (
     <header className="site-header">
       <a className="wordmark" href="#/chat" aria-label="Olio home">
-        {/* The mark is the capital O of the word. Masked rather than an
-            <img>, so it takes the page ink; an img is its own document and
-            could not inherit currentColor. */}
+        {/* The field itself, not a letterform. Masked rather than an <img>,
+            so it takes the page ink; an img is its own document and could not
+            inherit currentColor. */}
         <span className="wordmark-mark" aria-hidden="true" />
-        <span>lio</span>
+        <span>olio</span>
       </a>
       <nav aria-label="Main">
         {/* The shopping surface is where the wordmark points, so it needs a

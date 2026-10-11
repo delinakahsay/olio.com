@@ -504,6 +504,9 @@ export default function App() {
             )}
             {page === "about" && (
               <div className="about-page">
+                {/* The mark at full resolution. This is the only place it can
+                    be itself: 160 overlapping curves need the room. */}
+                <div className="about-mark" aria-hidden="true" />
                 <span className="eyebrow">A little about Olio</span>
                 <h1>
                   For the thing you can describe,

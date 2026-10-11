@@ -268,22 +268,27 @@ a:hover {
   color: var(--accent);
   line-height: 1;
   display: inline-flex;
-  align-items: baseline;
-  gap: 0.02em;
+  align-items: center;
+  gap: 0.22em;
 }
-/* The mark stands in for the capital O, so it is sized and seated like a
-   letter rather than an icon beside one. Masked so it takes currentColor:
-   it is drawn in the accent here because in the wordmark it IS the word. */
+/* The field, at the line count that survives this size. Masked so it takes
+   currentColor rather than being stuck black in dark mode. */
 .wordmark-mark {
-  width: 0.695em;
-  height: 0.752em;
+  width: 0.95em;
+  height: 0.95em;
   flex: none;
-  align-self: center;
-  position: relative;
-  top: 0.015em;
   background: currentColor;
-  -webkit-mask: url("/brand/olio-o.svg") center / contain no-repeat;
-  mask: url("/brand/olio-o.svg") center / contain no-repeat;
+  -webkit-mask: url("/brand/olio-mark.svg") center / contain no-repeat;
+  mask: url("/brand/olio-mark.svg") center / contain no-repeat;
+}
+.about-mark {
+  width: 190px;
+  height: 190px;
+  margin: 0 0 22px -14px;
+  background: var(--accent);
+  opacity: 0.9;
+  -webkit-mask: url("/brand/olio-field.svg") center / contain no-repeat;
+  mask: url("/brand/olio-field.svg") center / contain no-repeat;
 }
 .site-header nav {
   display: flex;
