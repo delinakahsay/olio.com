@@ -77,9 +77,13 @@ export default function Chat({
             aria-live="polite"
           >
             {!messages.length && (
-              // One line, then the composer. Suggestions come back when they
-              // can be drawn from what someone has actually looked at.
-              <p className="welcome-line">{opener}</p>
+              // The mark, one line, then the composer. Suggestions come back
+              // when they can be drawn from what someone has actually
+              // looked at.
+              <>
+                <div className="chat-mark" aria-hidden="true" />
+                <p className="welcome-line">{opener}</p>
+              </>
             )}
             {messages.map((m, i) => (
               <div key={i} className={"message " + m.role}>

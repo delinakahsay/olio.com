@@ -37,11 +37,7 @@ export default function Nav({
   return (
     <header className="site-header">
       <a className="wordmark" href="#/chat" aria-label="Olio home">
-        {/* The mark IS the first o. A short-chord variant, so the halo stays
-            tight enough around the counter to set as a letter. Masked rather
-            than an <img>, which could not inherit currentColor. */}
-        <span className="wordmark-mark" aria-hidden="true" />
-        <span className="wordmark-rest">lio</span>
+        olio
       </a>
       <nav aria-label="Main">
         {/* The shopping surface is where the wordmark points, so it needs a

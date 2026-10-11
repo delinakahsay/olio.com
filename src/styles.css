@@ -267,26 +267,6 @@ a:hover {
   letter-spacing: -4px;
   color: var(--accent);
   line-height: 1;
-  display: inline-flex;
-  align-items: center;
-  gap: 0;
-}
-/* The mark standing in for the first o. The glyph box is 100 units wide and
-   the counter is 35 of them, so the box has to be about 2em for the counter
-   to sit at letter height. The negative margins pull the surrounding letters
-   back in under the spikes, which is what makes it read as a letter rather
-   than a logo with a word after it. */
-.wordmark-mark {
-  width: 1.62em;
-  height: 1.62em;
-  flex: none;
-  margin: 0 -0.26em 0 -0.22em;
-  background: currentColor;
-  -webkit-mask: url("/brand/olio-glyph.svg") center / contain no-repeat;
-  mask: url("/brand/olio-glyph.svg") center / contain no-repeat;
-}
-.wordmark-rest {
-  position: relative;
 }
 .about-mark {
   width: 190px;
@@ -520,6 +500,16 @@ main {
   font-size: 19px;
   color: var(--muted);
   padding: 0 4px;
+}
+/* The mark sits at the head of an empty conversation, which is the one
+   place in the product with room for it. */
+.chat-mark {
+  width: 152px;
+  height: 152px;
+  margin: 0 auto 16px;
+  background: var(--accent);
+  -webkit-mask: url("/brand/olio-field.svg") center / contain no-repeat;
+  mask: url("/brand/olio-field.svg") center / contain no-repeat;
 }
 .empty-line {
   font-family: var(--serif);
@@ -1514,14 +1504,12 @@ main {
     gap: 25px;
   }
   .wordmark {
-    font-size: 26px;
+    font-size: 30px;
   }
-  /* The header is only 80px here, so the glyph box has to come in or the
-     spikes clip against the edges and crowd the nav. */
-  .wordmark-mark {
-    width: 1.52em;
-    height: 1.52em;
-    margin: 0 -0.22em 0 -0.19em;
+  .chat-mark {
+    width: 112px;
+    height: 112px;
+    margin-bottom: 12px;
   }
   .site-header nav {
     gap: 14px;
