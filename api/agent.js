@@ -87,6 +87,9 @@ HOW TO WORK.
 - Presenting is not the end of the turn. Unless the request was already specific, close the present message with the one question that would sharpen it.
 - You can only search retail products. There are no cars, property, services, travel, tickets or prescriptions in the index. If asked for those, just say so in conversation.
 
+WHO IS SELLING IT.
+Results marked RESALE/MARKETPLACE are eBay, Mercari, Poshmark, AliExpress, Temu and the dropship clothing sites. Searching for a product by name finds a lot of these, because that is where exact-name listings live. Do not lead with one. If a brand's own shop or a real retailer carries the thing, pick that instead, even at a higher price. Pick a marketplace listing only when it is the only way to get the item, when it is discontinued, or when the shopper has said they want secondhand, and when you do, say in the why that it is a resale listing so they know what they are clicking.
+
 WHEN NOT TO SEARCH.
 If the person is chatting, asking you a question, answering one of yours, or saying something that is not a shopping request, just reply. Do not search. Do not call present. "What is 5+5" gets "10", not a grid of dresses.
 
@@ -263,6 +266,37 @@ function hardenRequirements(reqs) {
   );
 }
 
+// Searching by exact product name, which is what reading the web makes it do,
+// pushes the feed toward resale and marketplace listings, because that is where
+// exact-name listings live. A Chikuhodo from a random eBay seller is not the
+// Chikuhodo the reviewer meant. These are marked rather than hidden: a resale
+// listing is sometimes the only way to get a discontinued brush, and sometimes
+// the whole point. The model is told, and they sort to the back.
+const RESALE_OR_DROPSHIP = [
+  "mercari",
+  "ebay",
+  "poshmark",
+  "depop",
+  "aliexpress",
+  "alibaba",
+  "dhgate",
+  "temu",
+  "wish",
+  "shein",
+  "vinted",
+  "thredup",
+  "azazie",
+  "dorris wedding",
+  "zapaka",
+  "milanoo",
+  "lightinthebox",
+  "shopee",
+];
+const isResale = (source) => {
+  const s = String(source || "").toLowerCase();
+  return RESALE_OR_DROPSHIP.some((n) => s.includes(n));
+};
+
 function mapProduct(item) {
   const title = item.title || "Product";
   const priceStr = String(item.extracted_price || item.price || "").replace(/[^0-9.]/g, "");
@@ -274,6 +308,7 @@ function mapProduct(item) {
     price: item.price || (priceStr ? "$" + Number(priceStr).toFixed(2) : ""),
     priceNum: parseFloat(priceStr) || 0,
     source: item.source || "Shop",
+    resale: isResale(item.source),
     link,
     snippet: item.snippet || item.description || "",
     thumbnail: safeUrl(item.thumbnail) || safeUrl(item.image) || null,
@@ -411,6 +446,7 @@ function describePages(query, pages) {
 // four searches blow the context.
 function describe(p) {
   const bits = [`${p.id}`, p.title, p.price || "price n/a", p.source];
+  if (p.resale) bits.push("RESALE/MARKETPLACE, prefer a real retailer");
   if (p.rating) bits.push(`${p.rating}/5 (${p.reviews || "?"} reviews)`);
   if (p.tags.length) bits.push(p.tags.slice(0, 3).join("; "));
   return bits.join(" | ");
@@ -595,9 +631,12 @@ async function runAgent({
           });
         }
         // Anything it found but did not pick still goes in, after the picks,
-        // so a thin shortlist does not look like a broken search.
-        for (const p of pool.values())
-          if (!used.has(p.id)) ordered.push({ ...p, fit: null, why: "" });
+        // so a thin shortlist does not look like a broken search. Resale and
+        // dropship listings go last within that tail: still there if they are
+        // the only source, never the first thing in the grid.
+        const tail = [...pool.values()].filter((p) => !used.has(p.id));
+        for (const p of [...tail.filter((p) => !p.resale), ...tail.filter((p) => p.resale)])
+          ordered.push({ ...p, fit: null, why: "" });
 
         // Reading the web made the messages longer, because once it has read
         // five roundups it wants to recite all five brushes. The grid already

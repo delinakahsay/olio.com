@@ -80,6 +80,7 @@ These are structural. The model cannot talk its way past them.
 | Hard requirements forced server side | It labelled "Fits 14 inch laptop" as taste, so a JW Pei crescent bag reached the shortlist. Anything with a measurement, price, size or capability word is forced hard regardless of what the model said. |
 | A product named only in page text is refused | The web tool's version of inventing products. An article naming a $69 brush is a lead to search for, not a product to show. Covered by the same pool-id check, tested against a page that also tries to inject instructions. |
 | A message that re-lists the grid is refused | Reading five roundups made it want to recite five brushes, so the answer became a paragraph naming every product already visible beside it with its price. Naming one standout is good; naming the list is duplicate text. Refused once, then it stands. |
+| Resale and marketplace listings sort behind real retailers | Searching by exact product name, which is what reading the web makes it do, pushes the feed toward eBay, Mercari and the dropship clothing sites, because that is where exact-name listings live. Marked for the model, sorted last, never hidden: sometimes resale is the only source. |
 | Directory and people-search pages cannot count as sources | "Best blush brush" read mapquest, yelp and rocketreach, because a general web search reads a product phrase as a local business. Excluded upstream, plus a relevance floor. |
 | No `OPENAI_API_KEY` fails loudly | Degrading to keyword-only search silently is how you end up with a worse Google that nobody can diagnose. |
 
@@ -111,6 +112,9 @@ Be suspicious of these; they are where the next bug will be.
   is paid-placement skewed and dominated in apparel by dropship formalwear.
   Reading the web changes which products get searched for, which helps a lot in
   categories people write about, and not at all for a dress nobody reviewed.
+  It also surfaces a new gap: reviewers name things the feed does not carry, so
+  expect "the Chikuhodo was not in the results" more often. That is the truth,
+  not a bug, but it argues for a second buying source.
 - **It cannot see.** Picks are judged from title, price, rating and spec tags.
   It cannot tell polyester prom satin from the thing you wanted. Vision on the
   thumbnails is the open fix.

@@ -527,3 +527,42 @@ test("a message that re-lists the grid is refused once, then shortened", async (
     global.fetch = original;
   }
 });
+
+test("resale listings are flagged to the model and sort behind real retailers", async () => {
+  process.env.SERP_API_KEY = "test";
+  process.env.OPENAI_API_KEY = "test";
+  const original = global.fetch;
+  let shown = "";
+  const rows = [
+    { title: "Chikuhodo Z-8", extracted_price: 60, link: "https://e.com/a", source: "eBay - n.r.company" },
+    { title: "Jones Road Blush Brush", extracted_price: 38, link: "https://j.com/b", source: "jonesroadbeauty.com" },
+    { title: "Sigma Brush Set", extracted_price: 45, link: "https://m.com/c", source: "Mercari" },
+  ];
+  global.fetch = async (url, options) => {
+    if (String(url).includes("serpapi"))
+      return { ok: true, json: async () => ({ shopping_results: rows }) };
+    const sent = JSON.parse(options.body);
+    const toolMsgs = sent.messages.filter((m) => m.role === "tool");
+    if (toolMsgs.length) shown = toolMsgs.map((m) => m.content).join("\n");
+    const call = (name, args) => ({
+      id: "c" + toolMsgs.length,
+      type: "function",
+      function: { name, arguments: JSON.stringify(args) },
+    });
+    // Picks nothing, so the whole grid is the unpicked tail and ordering is
+    // entirely down to the resale sort.
+    const tool_calls =
+      toolMsgs.length === 0
+        ? [call("search_products", { query: "blush brush" })]
+        : [call("present", { message: "Here is what reviewers name.", picks: [] })];
+    return { ok: true, json: async () => ({ choices: [{ message: { role: "assistant", tool_calls } }] }) };
+  };
+  try {
+    const { payload } = await call(search, { query: "best blush brush" });
+    assert.match(shown, /RESALE\/MARKETPLACE/, "the model is told which are resale");
+    assert.equal(payload.products[0].source, "jonesroadbeauty.com", "a real retailer leads");
+    assert.ok(payload.products.slice(1).every((p) => p.resale), "resale sorts to the back");
+  } finally {
+    global.fetch = original;
+  }
+});
