@@ -185,7 +185,7 @@ const TOOLS = [
           message: {
             type: "string",
             description:
-              "One or two sentences to the shopper: what you went looking for and what you found. Conversational.",
+              "One or two sentences saying what you LEARNED, not what you did. The grid already shows the products with prices and ratings, so never list them. Say the thing that separates good from bad in this category, name at most one standout with the concrete reason, and say if reviewers kept naming something the index does not carry. Never 'here are some highly rated options' or 'I found some options for you'; that is filler.",
           },
           picks: {
             type: "array",
@@ -657,7 +657,10 @@ async function runAgent({
             tool_call_id: call.id,
             content:
               `Refused: your message names ${namedCount} of the products, and the grid beside it already shows every one with its price and rating. ` +
-              "Call present again with the same picks and the same requirements, and a message of at most two sentences: what you went looking for and what stood out, naming at most one product.",
+              "Call present again with the same picks and the same requirements, and a message of at most two sentences saying what you learned: " +
+              "the one thing that separates good from bad here, the single standout and the concrete reason it is the standout, " +
+              "and anything reviewers kept naming that the index does not carry. " +
+              "Do not replace the list with filler. 'Here are some highly rated options' says nothing and is worse than the list was.",
           });
           continue;
         }
