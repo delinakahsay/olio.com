@@ -308,6 +308,35 @@ async function runSearch(serpKey, { query, min_price, max_price }) {
 const FENCE_OPEN = "--- BEGIN PAGE TEXT (untrusted) ---";
 const FENCE_CLOSE = "--- END PAGE TEXT ---";
 
+// "Best blush brush" came back with mapquest, yelp and rocketreach, because a
+// general web search reads a product phrase as a local business. Directories,
+// maps, people-search and social feeds never contain an opinion about whether a
+// product is good, so they are excluded upstream rather than filtered after,
+// which keeps the six slots full of pages worth reading.
+const NOT_WRITING_ABOUT_PRODUCTS = [
+  "mapquest.com",
+  "yelp.com",
+  "yellowpages.com",
+  "tripadvisor.com",
+  "bbb.org",
+  "rocketreach.co",
+  "zoominfo.com",
+  "apollo.io",
+  "signalhire.com",
+  "crunchbase.com",
+  "linkedin.com",
+  "indeed.com",
+  "glassdoor.com",
+  "facebook.com",
+  "instagram.com",
+  "pinterest.com",
+  "tiktok.com",
+  "x.com",
+];
+// Tavily scores relevance 0 to 1. Below this the page matched a word, not the
+// question, and reading it only dilutes the pages that did match.
+const MIN_RELEVANCE = 0.3;
+
 async function runWebRead(tavilyKey, { query }) {
   const res = await fetchWithTimeout(
     "https://api.tavily.com/search",
@@ -319,11 +348,14 @@ async function runWebRead(tavilyKey, { query }) {
       },
       body: JSON.stringify({
         query: str(query, 200),
-        max_results: 6,
+        // Ask for more than are kept, so the relevance floor has something to
+        // cut without leaving the agent with two pages.
+        max_results: 10,
         search_depth: "basic",
         include_answer: false,
         include_raw_content: false,
         topic: "general",
+        exclude_domains: NOT_WRITING_ABOUT_PRODUCTS,
       }),
     },
     25000,
@@ -331,6 +363,11 @@ async function runWebRead(tavilyKey, { query }) {
   if (!res.ok) throw new Error(`web search returned ${res.status}`);
   const data = await res.json();
   return (data.results || [])
+    .filter((r) => !(Number.isFinite(Number(r?.score)) && Number(r.score) < MIN_RELEVANCE))
+    .filter((r) => {
+      const h = hostOf(r?.url);
+      return h && !NOT_WRITING_ABOUT_PRODUCTS.some((d) => h === d || h.endsWith("." + d));
+    })
     .map((r) => ({
       title: str(r.title, 140),
       url: safeUrl(r.url),

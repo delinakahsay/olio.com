@@ -410,3 +410,66 @@ test("reading and then answering in prose gets nudged to search once", async () 
     delete process.env.TAVILY_API_KEY;
   }
 });
+
+test("directory and people-search pages never count as writing about products", async () => {
+  process.env.SERP_API_KEY = "test";
+  process.env.OPENAI_API_KEY = "test";
+  process.env.TAVILY_API_KEY = "test";
+  const original = global.fetch;
+  let excluded = [];
+  global.fetch = async (url, options) => {
+    const u = String(url);
+    if (u.includes("tavily")) {
+      excluded = JSON.parse(options.body).exclude_domains || [];
+      return {
+        ok: true,
+        json: async () => ({
+          results: [
+            { title: "Best Blush Brushes", url: "https://allure.com/b", content: "Patrick Ta leads.", score: 0.9 },
+            { title: "Blush Brush near me", url: "https://www.yelp.com/x", content: "Salon listings", score: 0.8 },
+            { title: "Jane Doe", url: "https://rocketreach.co/jane", content: "Contact info", score: 0.7 },
+            { title: "Loosely related", url: "https://blog.example/x", content: "Mentions brush once", score: 0.08 },
+          ],
+        }),
+      };
+    }
+    if (u.includes("serpapi"))
+      return {
+        ok: true,
+        json: async () => ({
+          shopping_results: [{ title: "Patrick Ta Blush Brush", extracted_price: 40, link: "https://s.com/pt", rating: 4.7 }],
+        }),
+      };
+    const sent = JSON.parse(options.body);
+    const toolMsgs = sent.messages.filter((m) => m.role === "tool");
+    const call = (name, args) => ({
+      id: "c" + toolMsgs.length,
+      type: "function",
+      function: { name, arguments: JSON.stringify(args) },
+    });
+    const tool_calls =
+      toolMsgs.length === 0
+        ? [call("read_the_web", { query: "best blush brush review" })]
+        : toolMsgs.length === 1
+          ? [call("search_products", { query: "Patrick Ta blush brush" })]
+          : [
+              call("present", {
+                message: "Patrick Ta is the one reviewers keep naming.",
+                picks: [{ id: idOf("https://s.com/pt"), fit: 92, why: "4.7 stars, named in roundups" }],
+              }),
+            ];
+    return { ok: true, json: async () => ({ choices: [{ message: { role: "assistant", tool_calls } }] }) };
+  };
+  try {
+    const { payload } = await call(search, { query: "best blush brush" });
+    assert.ok(excluded.includes("yelp.com"), "directories excluded upstream");
+    assert.deepEqual(
+      payload.sources.map((s) => s.site),
+      ["allure.com"],
+      "only pages that actually discuss the product survive",
+    );
+  } finally {
+    global.fetch = original;
+    delete process.env.TAVILY_API_KEY;
+  }
+});
