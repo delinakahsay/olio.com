@@ -316,10 +316,26 @@ const RESALE_OR_DROPSHIP = [
   "milanoo",
   "lightinthebox",
   "shopee",
+  // Promotional-merchandise and corporate-gifting vendors. "Leather work
+  // tote" filled half a grid with Fox & Field Corporate Gifting and iPromo
+  // selling the same blank tote waiting for a company logo. Nobody shopping
+  // for themselves wants these.
+  "tiktok shop",
+  "ipromo",
+  "4imprint",
+  "customink",
+  "discountmugs",
+  "corporate gift",
+  "promotional",
+  "promo products",
 ];
-const isResale = (source) => {
+// Some of them are only identifiable from the listing itself.
+const PROMO_TITLE = /custom branded|corporate gift|promotional product|your logo|logo imprint|bulk order/i;
+const isResale = (source, title) => {
   const s = String(source || "").toLowerCase();
-  return RESALE_OR_DROPSHIP.some((n) => s.includes(n));
+  return (
+    RESALE_OR_DROPSHIP.some((n) => s.includes(n)) || PROMO_TITLE.test(String(title || ""))
+  );
 };
 
 function mapProduct(item) {
@@ -333,7 +349,7 @@ function mapProduct(item) {
     price: item.price || (priceStr ? "$" + Number(priceStr).toFixed(2) : ""),
     priceNum: parseFloat(priceStr) || 0,
     source: item.source || "Shop",
-    resale: isResale(item.source),
+    resale: isResale(item.source, title),
     link,
     snippet: item.snippet || item.description || "",
     thumbnail: safeUrl(item.thumbnail) || safeUrl(item.image) || null,
@@ -512,9 +528,10 @@ async function runAgent({
   memory = [],
   saved = [],
   brief = [],
-  // Reading, then two or three searches, then presenting is four rounds on its
-  // own, and a nudge can cost another. Five was sized for search-then-present.
-  maxRounds = 7,
+  // A read, three brand searches and a present is five rounds before any
+  // nudge, and the read floor means that is now the normal path, not the
+  // exception.
+  maxRounds = 9,
 }) {
   // What it already knows walks in with it, rather than being re-derived from
   // the conversation every time.
@@ -554,7 +571,14 @@ async function runAgent({
   let webReads = 0;
   // Each nudge fires at most once per turn, so a model that keeps answering in
   // prose cannot eat the whole round budget being told off.
-  const nudged = { present: false, search: false, enumerate: false, ask: false, breadth: false };
+  const nudged = {
+    present: false,
+    search: false,
+    enumerate: false,
+    ask: false,
+    breadth: false,
+    read: false,
+  };
 
   for (let round = 0; round < maxRounds; round++) {
     const reply = await callModel(openaiKey, model, messages, 30000, tools);
@@ -648,6 +672,27 @@ async function runAgent({
             tool_call_id: call.id,
             content:
               "Refused: you have not searched, so there is nothing to present. Call search_products first. Never name a product you have not seen in search results.",
+          });
+          continue;
+        }
+
+        // Reading is the product. Left as an option the model took it for
+        // "best blush brush" and skipped it for "a leather work tote for a 21
+        // year old", which is just as much a taste question, and the breadth
+        // floor below only bought a second descriptor query: "leather laptop
+        // bag for two laptops" and "professional leather tote for laptops",
+        // which between them found men's briefcases. The floor forces two
+        // searches, not two good ones, and only reading supplies the names.
+        // So read once before presenting, whenever there is a key for it.
+        if (tavilyKey && !webReads && !nudged.read) {
+          nudged.read = true;
+          messages.push({
+            role: "tool",
+            tool_call_id: call.id,
+            content:
+              "Refused: you have not read anything, so these are the feed's picks rather than anyone's. " +
+              "Call read_the_web to find out which brands actually make this well for this shopper, then search two or three of those names and present. " +
+              "If what comes back is genuinely useless, present anyway and say so.",
           });
           continue;
         }

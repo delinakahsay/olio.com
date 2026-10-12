@@ -707,3 +707,72 @@ test("a bare question with nothing looked at gets nudged to search", async () =>
     global.fetch = original;
   }
 });
+
+test("it must read before presenting whenever a web key exists", async () => {
+  process.env.SERP_API_KEY = "test";
+  process.env.OPENAI_API_KEY = "test";
+  process.env.TAVILY_API_KEY = "test";
+  const original = global.fetch;
+  let refusedRead = false;
+  let reads = 0;
+  global.fetch = async (url, options) => {
+    const u = String(url);
+    if (u.includes("tavily")) {
+      reads++;
+      return {
+        ok: true,
+        json: async () => ({
+          results: [{ title: "Best work totes", url: "https://thestrategist.com/t", content: "Cuyana and Polene lead.", score: 0.9 }],
+        }),
+      };
+    }
+    if (u.includes("serpapi"))
+      return {
+        ok: true,
+        json: async () => ({
+          shopping_results: [
+            { title: "Cuyana Classic Structured Leather Tote", extracted_price: 298, link: "https://c.com/a", source: "cuyana.com" },
+            { title: "Custom Branded Executive Work Tote", extracted_price: 49, link: "https://p.com/b", source: "Fox & Field Corporate Gfiting" },
+          ],
+        }),
+      };
+    const sent = JSON.parse(options.body);
+    const toolMsgs = sent.messages.filter((m) => m.role === "tool");
+    if (toolMsgs.some((m) => String(m.content).includes("you have not read anything"))) refusedRead = true;
+    const call = (name, args) => ({
+      id: "c" + toolMsgs.length,
+      type: "function",
+      function: { name, arguments: JSON.stringify(args) },
+    });
+    const present = () => [
+      call("present", {
+        message: "Cuyana is the one reviewers keep naming at this size.",
+        picks: [{ id: idOf("https://c.com/a"), fit: 92, why: "Structured leather, fits a 14in" }],
+      }),
+    ];
+    // Tries the lazy path first: two descriptor searches, then present.
+    const tool_calls = !refusedRead
+      ? toolMsgs.length === 0
+        ? [call("search_products", { query: "leather laptop tote" })]
+        : toolMsgs.length === 1
+          ? [call("search_products", { query: "professional leather tote laptops" })]
+          : present()
+      : reads === 0
+        ? [call("read_the_web", { query: "best leather work tote for a 21 year old" })]
+        : present();
+    return { ok: true, json: async () => ({ choices: [{ message: { role: "assistant", tool_calls } }] }) };
+  };
+  try {
+    const { payload } = await call(search, { query: "a chic leather work tote" });
+    assert.ok(refusedRead, "two descriptor searches are not a substitute for reading");
+    assert.equal(reads, 1);
+    assert.deepEqual(payload.sources.map((s) => s.site), ["thestrategist.com"]);
+    // Corporate-gifting blanks are caught from the listing, not the seller name.
+    const promo = payload.products.find((p) => /Custom Branded/.test(p.title));
+    assert.ok(promo && promo.resale, "promotional blanks are flagged");
+    assert.equal(payload.products[0].source, "cuyana.com");
+  } finally {
+    global.fetch = original;
+    delete process.env.TAVILY_API_KEY;
+  }
+});

@@ -80,6 +80,7 @@ These are structural. The model cannot talk its way past them.
 | Hard requirements forced server side | It labelled "Fits 14 inch laptop" as taste, so a JW Pei crescent bag reached the shortlist. Anything with a measurement, price, size or capability word is forced hard regardless of what the model said. |
 | A product named only in page text is refused | The web tool's version of inventing products. An article naming a $69 brush is a lead to search for, not a product to show. Covered by the same pool-id check, tested against a page that also tries to inject instructions. |
 | A message that re-lists the grid is refused | Reading five roundups made it want to recite five brushes, so the answer became a paragraph naming every product already visible beside it with its price. Naming one standout is good; naming the list is duplicate text. Refused once, then it stands. |
+| Presenting without reading is refused | Left as an option, it read for "best blush brush" and skipped it for "a leather work tote for a 21 year old", which is just as much a taste question. The breadth floor below only bought a second descriptor query, and the two together found men's briefcases. Only reading supplies the brand names, so reading is now the normal path, not the exception. |
 | Presenting off a single descriptor search is refused | "Chic leather laptop tote 14 inch" ran once and returned bags she could beat off the top of her head. One generic query against a paid-placement feed is a worse Google, which is the thing this app exists not to be. Two angles, or read the web first. |
 | Markdown is stripped from every message | It answered a bag request with "1. **Fits two laptops**: ...". The message renders as one paragraph of serif text, so asterisks render as asterisks. |
 | A bare question with nothing searched gets nudged | Same bag request came back as a numbered restatement plus "what size are your laptops?", which spends a turn and shows nothing. A missing measurement is not a reason to stop. |
@@ -100,9 +101,10 @@ Be suspicious of these; they are where the next bug will be.
   the second is a legitimate prose reply. One nudge, then it stands.
 - Whether it reads the web at all on an open-ended request, rather than going
   straight to the feed.
-- **Whether the searches name brands.** The breadth floor forces two searches,
-  not two good ones, and this is the difference between Olio and a search box.
-  Prompted hard, not guaranteed. Watch it.
+- **Whether the searches name brands.** The read floor makes the names
+  available and the prompt says to use them, but nothing checks that a query
+  contains one. This is the difference between Olio and a search box, so it is
+  the next thing to watch.
 - Asking a question *after* results rather than instead of them.
 - Whether a `why` actually addresses the hard requirements.
 - Whether refinements name real category axes or generic filler.
@@ -134,7 +136,7 @@ Be suspicious of these; they are where the next bug will be.
   searches a month, and a turn that reads uses one or two.
 - `OLIO_MODEL`, default `gpt-4o`. Mini cannot hold the inference from "I lean
   warm" to "rule out lilac", which is the whole product.
-- Max 7 rounds per turn. Read, two searches and a present is four on its own,
+- Max 9 rounds per turn. Read, two searches and a present is four on its own,
   and a nudge can cost another.
 - `searches` and `sources` are returned on every response and shown under the
   result count, so you can always see what it typed into the index and which
