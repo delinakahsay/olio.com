@@ -36,6 +36,9 @@ module.exports = async function handler(req, res) {
 
   const SERP_KEY = process.env.SERP_API_KEY;
   const OPENAI_KEY = process.env.OPENAI_API_KEY;
+  // Optional. Without it the agent keeps working off the product index alone,
+  // which is worse but not broken, so this one degrades rather than failing.
+  const TAVILY_KEY = process.env.TAVILY_API_KEY || "";
   if (!SERP_KEY) {
     return res
       .status(500)
@@ -88,6 +91,7 @@ module.exports = async function handler(req, res) {
     const out = await runAgent({
       openaiKey: OPENAI_KEY,
       serpKey: SERP_KEY,
+      tavilyKey: TAVILY_KEY,
       model: MODEL,
       history,
       message,
@@ -116,6 +120,9 @@ module.exports = async function handler(req, res) {
       products: out.products,
       reading: out.reading || null,
       searches: out.searches,
+      // What it read, so a recommendation with a reason behind it can show
+      // where the reason came from.
+      sources: out.sources || [],
     });
   } catch (error) {
     console.error("Search error:", error);

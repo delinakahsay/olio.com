@@ -12,14 +12,15 @@ api/search.js        auth, assemble context, call the agent, persist memory
    ↓
 api/agent.js         the loop. this is where all the behaviour lives
    ↓  ↕ tools
+   ↓     read_the_web     → Tavily, reviews and roundups
    ↓     search_products  → SerpAPI google_shopping
    ↓     remember         → users.memory in Supabase
    ↓     present          → the shortlist you see
    ↓
-{ mode, summary, products, reading, searches }
+{ mode, summary, products, reading, searches, sources }
 ```
 
-`agent.js` is not a pipeline. It is a loop, up to 5 rounds. Each round the
+`agent.js` is not a pipeline. It is a loop, up to 7 rounds. Each round the
 model decides what to do next: search again, remember something, present, or
 just talk. Nothing else chooses for it.
 
@@ -33,7 +34,23 @@ just talk. Nothing else chooses for it.
 4. **Your saved items**, as evidence of taste rather than instructions.
 5. **The last 12 messages** with roles intact.
 
-## The three tools
+## The four tools
+
+**`read_the_web(query)`** hits Tavily and returns six page titles with excerpts:
+reviews, roundups, forum threads. This is the depth you were missing. The
+product index knows what exists and what it costs and has no idea what is good,
+and the only place that knowledge lives is in writing about products. The agent
+is told to read first on any question about quality, pull out the specific
+product names people who know the category keep naming, and then search the
+index for those names. Capped at two reads a turn. Offered to the model only
+when `TAVILY_API_KEY` is set, because a tool that always errors teaches it to
+stop trying and the failure then looks like bad reasoning.
+
+Page text arrives fenced and labelled untrusted, and the fence markers are
+stripped out of the page content so a page cannot close the fence early and
+have the rest of itself read as instructions. That is the soft defence. The
+hard one is that nothing read can become a pick, because picks must carry ids
+from a real product search.
 
 **`search_products(query, min_price, max_price)`** hits SerpAPI's
 `google_shopping` engine, maps ~13 fields per result (title, price, source,
@@ -61,6 +78,7 @@ These are structural. The model cannot talk its way past them.
 | A prose reply while holding results is refused | "Best blush brush" searched, found brushes, then answered in a paragraph and threw the pool away. You saw an empty grid under a confident answer. |
 | Round exhaustion still returns the pool | Last line of defence: if a search returned products, you see products. |
 | Hard requirements forced server side | It labelled "Fits 14 inch laptop" as taste, so a JW Pei crescent bag reached the shortlist. Anything with a measurement, price, size or capability word is forced hard regardless of what the model said. |
+| A product named only in page text is refused | The web tool's version of inventing products. An article naming a $69 brush is a lead to search for, not a product to show. Covered by the same pool-id check, tested against a page that also tries to inject instructions. |
 | No `OPENAI_API_KEY` fails loudly | Degrading to keyword-only search silently is how you end up with a worse Google that nobody can diagnose. |
 
 The repeated lesson: **a tool description is not a constraint.** Every one of
@@ -70,6 +88,12 @@ these started as an instruction the model ignored.
 
 Be suspicious of these; they are where the next bug will be.
 
+- **Reading the web and then answering in prose with no grid.** This gets one
+  nudge and then is allowed. A server cannot tell "best carry-on" (wants
+  products) from "what should I look for in a carry-on" (wants an answer), and
+  the second is a legitimate prose reply. One nudge, then it stands.
+- Whether it reads the web at all on an open-ended request, rather than going
+  straight to the feed.
 - Asking a question *after* results rather than instead of them.
 - Whether a `why` actually addresses the hard requirements.
 - Whether refinements name real category axes or generic filler.
@@ -79,9 +103,10 @@ Be suspicious of these; they are where the next bug will be.
 
 ## Known ceilings
 
-- **One source.** Everything is Google Shopping, which is paid-placement
-  skewed and dominated in apparel by dropship formalwear. No amount of
-  reasoning finds a good dress in a feed that has none.
+- **One source for buying.** Everything purchasable is Google Shopping, which
+  is paid-placement skewed and dominated in apparel by dropship formalwear.
+  Reading the web changes which products get searched for, which helps a lot in
+  categories people write about, and not at all for a dress nobody reviewed.
 - **It cannot see.** Picks are judged from title, price, rating and spec tags.
   It cannot tell polyester prom satin from the thing you wanted. Vision on the
   thumbnails is the open fix.
@@ -90,8 +115,13 @@ Be suspicious of these; they are where the next bug will be.
 
 ## Settings worth knowing
 
+- `TAVILY_API_KEY`, optional. Without it the web tool is not offered and Olio
+  works off the product feed alone: worse, not broken. Free tier is 1,000
+  searches a month, and a turn that reads uses one or two.
 - `OLIO_MODEL`, default `gpt-4o`. Mini cannot hold the inference from "I lean
   warm" to "rule out lilac", which is the whole product.
-- Max 5 rounds per turn. Raise it in `runAgent` if searches get truncated.
-- `searches` is returned on every response and shown under the result count,
-  so you can always see what it actually typed into the index.
+- Max 7 rounds per turn. Read, two searches and a present is four on its own,
+  and a nudge can cost another.
+- `searches` and `sources` are returned on every response and shown under the
+  result count, so you can always see what it typed into the index and which
+  sites it read. An agent you cannot see is one you cannot debug.

@@ -29,6 +29,27 @@ const OPENERS = [
 ];
 // Chosen once per mount, so it varies between visits but never mid-session.
 const opener = OPENERS[Math.floor(Math.random() * OPENERS.length)];
+// Where a recommendation came from. Olio reads reviews and roundups before
+// searching, and a reason you cannot trace is a reason you cannot trust.
+function SourceList({ sources }) {
+  if (!sources?.length) return null;
+  const seen = [];
+  for (const s of sources)
+    if (s?.site && !seen.some((x) => x.site === s.site)) seen.push(s);
+  return (
+    <p className="subtle read-from">
+      Read{" "}
+      {seen.slice(0, 5).map((s, i) => (
+        <span key={s.url}>
+          {i > 0 && ", "}
+          <a href={s.url} target="_blank" rel="noopener noreferrer" title={s.title}>
+            {s.site}
+          </a>
+        </span>
+      ))}
+    </p>
+  );
+}
 export default function Chat({
   messages,
   results,
@@ -44,6 +65,7 @@ export default function Chat({
   onRelax,
   noMatch,
   searches,
+  sources = [],
 }) {
   const [draft, setDraft] = useState("");
   const [category, setCategory] = useState(preferences.category || "");
@@ -149,6 +171,9 @@ export default function Chat({
                 </button>
               </div>
             )}
+            {/* A prose answer shows its sources beside the answer, since there
+                is no shortlist panel strip to hang them under. */}
+            {!loading && !results.length && <SourceList sources={sources} />}
             {!loading && (pinned.length > 0 || reading?.refinements?.length > 0) && (
               <div className="suggestions">
                 {pinned.map((r) => (
@@ -300,6 +325,7 @@ export default function Chat({
                   Searched {searches.map((q) => `“${q}”`).join(", ")}
                 </p>
               )}
+              <SourceList sources={sources} />
               <div className="product-grid">
                 {products.map((p) => (
                   <ProductCard

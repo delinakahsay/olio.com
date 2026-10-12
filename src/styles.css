@@ -641,6 +641,20 @@ select {
   font-size: 12px;
   opacity: 0.75;
 }
+.read-from {
+  margin-top: -6px;
+  font-size: 12px;
+  opacity: 0.75;
+}
+.read-from a {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, currentColor 35%, transparent);
+  text-underline-offset: 2px;
+}
+.read-from a:hover {
+  text-decoration-color: currentColor;
+}
 .constraint-list {
   display: flex;
   flex-wrap: wrap;
