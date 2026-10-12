@@ -79,6 +79,8 @@ These are structural. The model cannot talk its way past them.
 | Round exhaustion still returns the pool | Last line of defence: if a search returned products, you see products. |
 | Hard requirements forced server side | It labelled "Fits 14 inch laptop" as taste, so a JW Pei crescent bag reached the shortlist. Anything with a measurement, price, size or capability word is forced hard regardless of what the model said. |
 | A product named only in page text is refused | The web tool's version of inventing products. An article naming a $69 brush is a lead to search for, not a product to show. Covered by the same pool-id check, tested against a page that also tries to inject instructions. |
+| A message that re-lists the grid is refused | Reading five roundups made it want to recite five brushes, so the answer became a paragraph naming every product already visible beside it with its price. Naming one standout is good; naming the list is duplicate text. Refused once, then it stands. |
+| Directory and people-search pages cannot count as sources | "Best blush brush" read mapquest, yelp and rocketreach, because a general web search reads a product phrase as a local business. Excluded upstream, plus a relevance floor. |
 | No `OPENAI_API_KEY` fails loudly | Degrading to keyword-only search silently is how you end up with a worse Google that nobody can diagnose. |
 
 The repeated lesson: **a tool description is not a constraint.** Every one of
@@ -99,7 +101,9 @@ Be suspicious of these; they are where the next bug will be.
 - Whether refinements name real category axes or generic filler.
 - Whether the search terms reflect what it knows you mean (warm colouring to
   peach and terracotta) rather than the words you used.
-- Tone, list formatting, length.
+- Tone and length, below the three-product enumeration floor.
+- Whether the read query is phrased for opinions ("best X reddit") rather than
+  bare, which is what sent it to local business listings the first time.
 
 ## Known ceilings
 

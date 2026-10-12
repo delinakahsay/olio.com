@@ -493,7 +493,7 @@ async function runAgent({
   let webReads = 0;
   // Each nudge fires at most once per turn, so a model that keeps answering in
   // prose cannot eat the whole round budget being told off.
-  const nudged = { present: false, search: false };
+  const nudged = { present: false, search: false, enumerate: false };
 
   for (let round = 0; round < maxRounds; round++) {
     const reply = await callModel(openaiKey, model, messages, 30000, tools);
@@ -599,6 +599,30 @@ async function runAgent({
         for (const p of pool.values())
           if (!used.has(p.id)) ordered.push({ ...p, fit: null, why: "" });
 
+        // Reading the web made the messages longer, because once it has read
+        // five roundups it wants to recite all five brushes. The grid already
+        // shows every one with its price and rating, so a message that names
+        // them is the same text twice, and "too much text" is the complaint
+        // this app has drawn more than any other. Naming one standout is good;
+        // naming the list is the bug.
+        const draft = str(args.message, 600);
+        const lowered = draft.toLowerCase();
+        const namedCount = ordered.slice(0, 10).filter((p) => {
+          const head = p.title.split(/\s+/).slice(0, 2).join(" ").toLowerCase();
+          return head.length > 4 && lowered.includes(head);
+        }).length;
+        if (namedCount >= 3 && !nudged.enumerate) {
+          nudged.enumerate = true;
+          messages.push({
+            role: "tool",
+            tool_call_id: call.id,
+            content:
+              `Refused: your message names ${namedCount} of the products, and the grid beside it already shows every one with its price and rating. ` +
+              "Call present again with the same picks and the same requirements, and a message of at most two sentences: what you went looking for and what stood out, naming at most one product.",
+          });
+          continue;
+        }
+
         const reqs = hardenRequirements(
           (Array.isArray(args.requirements) ? args.requirements : [])
             .map((r) => ({ text: str(r?.text, 32), hard: Boolean(r?.hard) }))
@@ -609,8 +633,7 @@ async function runAgent({
         return {
           mode: "results",
           message:
-            str(args.message, 600) ||
-            `${ordered.length} options, best first.`,
+            draft || `${ordered.length} options, best first.`,
           gap: str(args.gap, 200) || null,
           products: ordered.slice(0, 24),
           reading: {

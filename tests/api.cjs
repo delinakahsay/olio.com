@@ -473,3 +473,57 @@ test("directory and people-search pages never count as writing about products", 
     delete process.env.TAVILY_API_KEY;
   }
 });
+
+test("a message that re-lists the grid is refused once, then shortened", async () => {
+  process.env.SERP_API_KEY = "test";
+  process.env.OPENAI_API_KEY = "test";
+  const original = global.fetch;
+  let refusals = 0;
+  const rows = [
+    { title: "Jones Road Blush Brush", extracted_price: 38, link: "https://s.com/a", rating: 4.8 },
+    { title: "Chikuhodo Z-8 Cheek Brush", extracted_price: 95, link: "https://s.com/b", rating: 4.9 },
+    { title: "Sigma F10 Blush Brush", extracted_price: 24, link: "https://s.com/c", rating: 4.5 },
+  ];
+  global.fetch = async (url, options) => {
+    if (String(url).includes("serpapi"))
+      return { ok: true, json: async () => ({ shopping_results: rows }) };
+    const sent = JSON.parse(options.body);
+    const toolMsgs = sent.messages.filter((m) => m.role === "tool");
+    refusals = toolMsgs.filter((m) => String(m.content).startsWith("Refused: your message names")).length;
+    const picks = rows.map((r, i) => ({ id: idOf(r.link), fit: 90 - i, why: "Named in roundups" }));
+    const call = (name, args) => ({
+      id: "c" + toolMsgs.length,
+      type: "function",
+      function: { name, arguments: JSON.stringify(args) },
+    });
+    const tool_calls =
+      toolMsgs.length === 0
+        ? [call("search_products", { query: "blush brush" })]
+        : refusals === 0
+          ? [
+              call("present", {
+                message:
+                  "The Jones Road Blush Brush and the Chikuhodo Z-8 Cheek Brush are both excellent, " +
+                  "and the Sigma F10 Blush Brush is a cheaper option.",
+                picks,
+              }),
+            ]
+          : [
+              call("present", {
+                message: "I looked for brushes reviewers keep naming. The Chikuhodo is the standout.",
+                picks,
+              }),
+            ];
+    return { ok: true, json: async () => ({ choices: [{ message: { role: "assistant", tool_calls } }] }) };
+  };
+  try {
+    const { payload } = await call(search, { query: "best blush brush" });
+    assert.equal(refusals, 1, "refused once, not in a loop");
+    assert.equal(payload.mode, "results");
+    assert.equal(payload.products.length, 3, "the picks survive the rewrite");
+    assert.ok(!/Jones Road/.test(payload.summary), "the grid is not re-listed in prose");
+    assert.ok(/standout/.test(payload.summary));
+  } finally {
+    global.fetch = original;
+  }
+});
