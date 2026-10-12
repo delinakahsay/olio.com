@@ -338,7 +338,21 @@ async function runAgent({
 
     const calls = reply.tool_calls || [];
     if (!calls.length) {
-      // Plain conversation. No search happened and none was wanted.
+      // A prose reply while holding search results means it described
+      // products instead of showing them, and the pool would be thrown away.
+      // That is the mirror of presenting without searching, and it is how
+      // "best blush brush" came back as a paragraph above an empty grid.
+      if (pool.size) {
+        messages.push(reply);
+        messages.push({
+          role: "user",
+          content:
+            `You have ${pool.size} real results in hand and answered in prose instead of showing them. ` +
+            "Call present now with their ids. Do not list products in the message; the grid displays them.",
+        });
+        continue;
+      }
+      // Genuine conversation: nothing was searched and nothing was wanted.
       return {
         mode: "chat",
         message: str(reply.content, 1200) || "Tell me a bit more and I'll look.",
@@ -465,6 +479,8 @@ async function runAgent({
   }
 
   // Ran out of rounds with products in hand: show them rather than nothing.
+  // Last line of defence: searched products always reach the shopper, even
+  // if the agent never produced a well-formed present call.
   if (pool.size) {
     const products = [...pool.values()].map((p) => ({ ...p, fit: null, why: "" }));
     return {

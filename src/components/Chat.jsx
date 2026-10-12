@@ -43,6 +43,7 @@ export default function Chat({
   preferences,
   onRelax,
   noMatch,
+  searches,
 }) {
   const [draft, setDraft] = useState("");
   const [category, setCategory] = useState(preferences.category || "");
@@ -292,6 +293,13 @@ export default function Chat({
                 {results.length} options · Check details and current prices with
                 the retailer.
               </p>
+              {searches?.length > 0 && (
+                // What it actually typed into the index. An agent you cannot
+                // see is one you cannot trust or debug.
+                <p className="subtle searched-for">
+                  Searched {searches.map((q) => `“${q}”`).join(", ")}
+                </p>
+              )}
               <div className="product-grid">
                 {products.map((p) => (
                   <ProductCard

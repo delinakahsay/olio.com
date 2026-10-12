@@ -66,6 +66,9 @@ export default function App() {
   // never calls a conversational turn a failed search.
   const [noMatch, setNoMatch] = useState(false);
   const [reading, setReading] = useState(null);
+  // The queries the agent actually ran. Shown to the shopper, because an
+  // agent you cannot see is an agent you cannot trust or debug.
+  const [searches, setSearches] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const conversationId = useRef(null);
@@ -162,6 +165,7 @@ export default function App() {
     setResults([]);
     setNoMatch(false);
     setReading(null);
+    setSearches([]);
     setError("");
     conversationId.current = null;
     lastParams.current = {};
@@ -229,6 +233,7 @@ export default function App() {
         setResults(data.products);
         setNoMatch(data.products.length === 0);
       }
+      setSearches(Array.isArray(data.searches) ? data.searches : []);
       if (searched || data.reading) setReading(data.reading || null);
       setMessages(complete);
       setConversations((rows) =>
@@ -464,6 +469,7 @@ export default function App() {
                 onVisit={visit}
                 preferences={preferences}
                 noMatch={noMatch}
+                searches={searches}
                 onRelax={(text) => {
                   const next = (reading?.requirements || []).filter(
                     (r) => r.text !== text,

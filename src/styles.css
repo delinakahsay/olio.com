@@ -636,6 +636,11 @@ select {
 .constraint-list .req-hard:hover {
   text-decoration: line-through;
 }
+.searched-for {
+  margin-top: -8px;
+  font-size: 12px;
+  opacity: 0.75;
+}
 .constraint-list {
   display: flex;
   flex-wrap: wrap;
