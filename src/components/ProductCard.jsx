@@ -37,7 +37,15 @@ export default function ProductCard({
       <div className="product-info">
         <p className="retailer">{product.source}</p>
         <h3>{product.title}</h3>
-        <p className="price">{product.price || "Check retailer for price"}</p>
+        <p className="price">
+          {product.price || "Check retailer for price"}
+          {product.rating ? (
+            <span className="rating">
+              {product.rating.toFixed(1)}
+              {product.reviews ? ` · ${product.reviews.toLocaleString()}` : ""}
+            </span>
+          ) : null}
+        </p>
         {product.why && <p className="product-why">{product.why}</p>}
         <a
           className="retailer-link"

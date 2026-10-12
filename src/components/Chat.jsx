@@ -42,6 +42,7 @@ export default function Chat({
   onVisit,
   preferences,
   onRelax,
+  noMatch,
 }) {
   const [draft, setDraft] = useState("");
   const [category, setCategory] = useState(preferences.category || "");
@@ -325,7 +326,10 @@ export default function Chat({
                 {/* One line here too. A heading, a paragraph and a footnote
                     for an empty panel was three taglines for no content. */}
                 <p className="empty-line">
-                  {messages.length
+                  {/* Only claim a failed search when one actually ran. A
+                      conversational turn used to make this panel say
+                      "Nothing matched", which reads as a broken search. */}
+                  {noMatch
                     ? "Nothing matched. Try a broader description or a different budget."
                     : "Your shortlist will appear here."}
                 </p>

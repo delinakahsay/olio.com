@@ -62,6 +62,9 @@ export default function App() {
   const saved = profile ? serverSaved : guestSaved;
   const [messages, setMessages] = useState([]);
   const [results, setResults] = useState([]);
+  // True only when a search ran and came back empty, so the shortlist panel
+  // never calls a conversational turn a failed search.
+  const [noMatch, setNoMatch] = useState(false);
   const [reading, setReading] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -157,6 +160,7 @@ export default function App() {
     setLoading(false);
     setMessages([]);
     setResults([]);
+    setNoMatch(false);
     setReading(null);
     setError("");
     conversationId.current = null;
@@ -221,7 +225,10 @@ export default function App() {
           ? `I found ${products.length} options to explore. Tell me what you’d like to change.`
           : "I couldn’t find a match this time. Try a broader description or a different budget.");
       const complete = [...next, { role: "assistant", text: response }];
-      if (searched) setResults(data.products);
+      if (searched) {
+        setResults(data.products);
+        setNoMatch(data.products.length === 0);
+      }
       if (searched || data.reading) setReading(data.reading || null);
       setMessages(complete);
       setConversations((rows) =>
@@ -249,6 +256,7 @@ export default function App() {
         }
         setError(err.message);
         setResults([]);
+        setNoMatch(false);
       }
     } finally {
       if (id === requestId.current) setLoading(false);
@@ -455,6 +463,7 @@ export default function App() {
                 onSave={toggleSave}
                 onVisit={visit}
                 preferences={preferences}
+                noMatch={noMatch}
                 onRelax={(text) => {
                   const next = (reading?.requirements || []).filter(
                     (r) => r.text !== text,
