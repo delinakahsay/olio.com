@@ -11,6 +11,26 @@ const str = (v, max) =>
 // volume the difference is cents a month.
 const MODEL = process.env.OLIO_MODEL || "gpt-4o";
 
+// The gap is often a reworded copy of a sentence already in the message, which
+// shipped "the Sigma F10 and RMS brushes were not found, suggesting limited
+// availability" immediately followed by the same sentence saying "indicating".
+// Compared on content words so a synonym swap does not slip past.
+const words = (s) =>
+  String(s || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter((w) => w.length > 3);
+function joinOnce(message, gap) {
+  if (!gap) return message;
+  if (!message) return gap;
+  const a = new Set(words(message));
+  const b = words(gap);
+  if (!b.length) return message;
+  const shared = b.filter((w) => a.has(w)).length / b.length;
+  return shared > 0.7 ? message : `${message} ${gap}`;
+}
+
 module.exports = async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
@@ -115,7 +135,7 @@ module.exports = async function handler(req, res) {
     return res.status(200).json({
       mode: out.mode,
       // The UI shows this as the assistant's turn.
-      summary: out.gap ? `${out.message} ${out.gap}` : out.message,
+      summary: joinOnce(out.message, out.gap),
       // null means "this was conversation, keep whatever is on screen".
       products: out.products,
       reading: out.reading || null,
