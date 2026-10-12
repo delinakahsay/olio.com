@@ -17,6 +17,20 @@ const str = (v, max) =>
     .trim()
     .slice(0, max);
 
+// The prompt bans lists and the model writes them anyway, so a shopper asking
+// for a bag got "1. **Fits two laptops**: ... 2. **Leather material**: ...".
+// Markdown is never right here: the message renders as one paragraph of serif
+// text beside the grid, so asterisks show up as asterisks.
+const plain = (v, max) =>
+  str(v, max)
+    .replace(/\*\*|__|`/g, "")
+    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/^\s*[-*•]\s+/gm, "")
+    .replace(/^\s*\d+[.)]\s+/gm, "")
+    .replace(/\s*\n+\s*/g, " ")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+
 function stableId(seed) {
   return crypto.createHash("sha1").update(String(seed)).digest("hex").slice(0, 16);
 }
@@ -57,6 +71,15 @@ const SYSTEM = `You are Olio, a shopping assistant. You talk like a knowledgeabl
 WHAT YOU KNOW IS THE POINT.
 Use everything you know about colour, fit, materials, seasons, occasions, brands and construction. If someone says they lean warm in their colouring, you know that means peach, coral, warm blush, butter yellow, terracotta, camel and olive, and that it rules out icy blue, lilac, stark white and cool fuchsia. Search for the specific things you know they mean, not the words they happened to use. A shopper saying "warm pastels" should never get a lavender dress back.
 
+NAME THE BRANDS. THIS IS THE BIGGEST THING YOU DO.
+A query like "chic leather laptop tote 14 inch" returns whatever the feed ranked this morning, which is how you show someone six bags they would never carry while they can name five better ones off the top of their head. Descriptor queries are what a search box does. The shopper can already type those into Google. They came here for the part Google cannot do.
+
+So before you search anything driven by taste, name the brands yourself, out of what you know. Who actually makes this, for this person, at this budget, in this register? Then search those names. For a 21 year old who wants a chic leather work tote under $1000, that is a list like JW Pei, Polene, Cuyana, Dagne Dover, Coach, Kate Spade, Tory Burch, Madewell, Mango and Everlane, and the searches are "JW Pei leather tote", "Polene Numero Dix", "Coach Cassie tote", not "chic leather tote". The same applies in every category: you know the names, use them.
+
+Spread the register. A $1000 ceiling is not an instruction to spend $1000, so put a genuinely affordable name next to the aspirational one. And age matters: the brands a 21 year old wants are not the brands her manager wants, even when both say "professional".
+
+If you are unsure who makes the good version of something, that is exactly when to read_the_web first and find out.
+
 THE BRIEF, AND WHY IT MATTERS MOST.
 You keep a running brief of what this search has to satisfy. Every requirement is either HARD or SOFT.
 
@@ -95,6 +118,8 @@ If the person is chatting, asking you a question, answering one of yours, or say
 
 ANSWER FIRST, THEN NARROW. THIS IS THE RULE THAT MATTERS MOST.
 Never make someone answer a question before they see anything. If the request names a thing you could type into a shop, search for it now, even when it is thin. Asking for a brand and a budget before doing any work is the opposite of helping.
+
+A missing measurement is not a reason to stop. Someone describing a bag for two laptops, a notebook and their makeup has told you they want a large leather work tote; search for it and ask about the laptop size alongside the results. Restating their request back to them as a numbered list of requirements and then asking a question is the single most useless thing you can do with a turn.
 
 When a request is vague, "best" means best reviewed. Lead with the highest rated options that carry enough reviews to mean something, and say that is what you did.
 
@@ -529,7 +554,7 @@ async function runAgent({
   let webReads = 0;
   // Each nudge fires at most once per turn, so a model that keeps answering in
   // prose cannot eat the whole round budget being told off.
-  const nudged = { present: false, search: false, enumerate: false };
+  const nudged = { present: false, search: false, enumerate: false, ask: false, breadth: false };
 
   for (let round = 0; round < maxRounds; round++) {
     const reply = await callModel(openaiKey, model, messages, 30000, tools);
@@ -572,10 +597,31 @@ async function runAgent({
         });
         continue;
       }
+      // Asked a question without looking at anything first. "A bag for two
+      // laptops, a notebook and my makeup, in leather" came back as a
+      // numbered restatement of the request plus "what size are your
+      // laptops?", which spends a turn and gives nothing. If it can tell what
+      // kind of object is wanted, it can search now and ask alongside.
+      if (
+        !searches.length &&
+        !webReads &&
+        !nudged.ask &&
+        String(reply.content || "").includes("?")
+      ) {
+        nudged.ask = true;
+        messages.push(reply);
+        messages.push({
+          role: "user",
+          content:
+            "You asked a question without looking at anything. If you can tell what kind of object they mean, search for it now, even roughly, and ask that question alongside the results. " +
+            "A missing size or budget is not a reason to stop. Only come back with a bare question if you genuinely cannot tell what kind of thing they want.",
+        });
+        continue;
+      }
       // Genuine conversation: nothing was searched and nothing was wanted.
       return {
         mode: "chat",
-        message: str(reply.content, 1200) || "Tell me a bit more and I'll look.",
+        message: plain(reply.content, 1200) || "Tell me a bit more and I'll look.",
         products: null,
         searches,
         sources,
@@ -602,6 +648,24 @@ async function runAgent({
             tool_call_id: call.id,
             content:
               "Refused: you have not searched, so there is nothing to present. Call search_products first. Never name a product you have not seen in search results.",
+          });
+          continue;
+        }
+
+        // One descriptor query against a paid-placement feed is a worse
+        // Google, which is the thing this app exists not to be. "Chic leather
+        // laptop tote 14 inch" ran once and returned bags she would never
+        // carry while she could name five better ones unaided. Two angles, or
+        // go and read first.
+        if (searches.length < 2 && !webReads && !nudged.breadth) {
+          nudged.breadth = true;
+          messages.push({
+            role: "tool",
+            tool_call_id: call.id,
+            content:
+              `Refused: you ran ${searches.length === 1 ? "one search" : "no searches"} and are about to present the top of a paid-placement feed. ` +
+              "Name the brands that actually make this for this shopper at this budget and search two or three of them by name, " +
+              "or call read_the_web first and find out who does. If the request named one exact product, search it a second way instead.",
           });
           continue;
         }
@@ -644,7 +708,7 @@ async function runAgent({
         // them is the same text twice, and "too much text" is the complaint
         // this app has drawn more than any other. Naming one standout is good;
         // naming the list is the bug.
-        const draft = str(args.message, 600);
+        const draft = plain(args.message, 600);
         const lowered = draft.toLowerCase();
         const namedCount = ordered.slice(0, 10).filter((p) => {
           const head = p.title.split(/\s+/).slice(0, 2).join(" ").toLowerCase();
@@ -676,7 +740,7 @@ async function runAgent({
           mode: "results",
           message:
             draft || `${ordered.length} options, best first.`,
-          gap: str(args.gap, 200) || null,
+          gap: plain(args.gap, 200) || null,
           products: ordered.slice(0, 24),
           reading: {
             requirements: reqs,

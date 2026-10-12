@@ -100,7 +100,16 @@ module.exports = async function handler(req, res) {
     : [];
 
   const notes = [];
-  if (pinned.length) notes.push(`Filters they switched on: ${pinned.join(", ")}.`);
+  // Clicking a refinement used to arrive as a passing note, so four clicks in
+  // a row produced four near-identical answers about the same BÉIS tote. A
+  // chip is a deliberate choice, so it binds: it must change the searches and
+  // it must show up in the reasons.
+  if (pinned.length)
+    notes.push(
+      `They clicked these filters, so they are binding: ${pinned.join(", ")}. ` +
+        "Run different searches because of them and say in each why how it meets them. " +
+        "If you cannot honour one, say so rather than returning the same shortlist again.",
+    );
   if (str(body.category, 40)) notes.push(`Browsing category: ${str(body.category, 40)}.`);
   if (Number(body.priceMax) > 0) notes.push(`Budget ceiling: $${Number(body.priceMax)}.`);
   if (Number(body.priceMin) > 0) notes.push(`Minimum price: $${Number(body.priceMin)}.`);

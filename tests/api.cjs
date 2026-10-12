@@ -566,3 +566,144 @@ test("resale listings are flagged to the model and sort behind real retailers", 
     global.fetch = original;
   }
 });
+
+test("markdown never reaches the shopper", async () => {
+  process.env.SERP_API_KEY = "test";
+  process.env.OPENAI_API_KEY = "test";
+  const original = global.fetch;
+  global.fetch = async (url, options) => {
+    if (String(url).includes("serpapi"))
+      return {
+        ok: true,
+        json: async () => ({
+          shopping_results: [{ title: "JW Pei Tote", extracted_price: 99, link: "https://j.com/a", source: "jwpei.com" }],
+        }),
+      };
+    const sent = JSON.parse(options.body);
+    const toolMsgs = sent.messages.filter((m) => m.role === "tool");
+    const call = (name, args) => ({
+      id: "c" + toolMsgs.length,
+      type: "function",
+      function: { name, arguments: JSON.stringify(args) },
+    });
+    const tool_calls =
+      toolMsgs.length === 0
+        ? [call("search_products", { query: "JW Pei leather tote" })]
+        : toolMsgs.length === 1
+          ? [call("search_products", { query: "Coach Cassie tote" })]
+          : [
+              call("present", {
+                message: "Hard requirements:\n1. **Fits two laptops**\n2. **Leather**\n- roomy",
+                picks: [{ id: idOf("https://j.com/a"), fit: 90, why: "Leather, fits a 14in" }],
+              }),
+            ];
+    return { ok: true, json: async () => ({ choices: [{ message: { role: "assistant", tool_calls } }] }) };
+  };
+  try {
+    const { payload } = await call(search, { query: "leather work tote" });
+    assert.ok(!/[*#]|\n/.test(payload.summary), `markdown leaked: ${payload.summary}`);
+    assert.match(payload.summary, /Fits two laptops/);
+  } finally {
+    global.fetch = original;
+  }
+});
+
+test("one descriptor search is refused; brand searches are not", async () => {
+  process.env.SERP_API_KEY = "test";
+  process.env.OPENAI_API_KEY = "test";
+  const original = global.fetch;
+  let refused = false;
+  const queries = [];
+  global.fetch = async (url, options) => {
+    if (String(url).includes("serpapi"))
+      return {
+        ok: true,
+        json: async () => ({
+          shopping_results: [{ title: "A tote", extracted_price: 99, link: "https://x.com/" + queries.length, source: "shop.com" }],
+        }),
+      };
+    const sent = JSON.parse(options.body);
+    const toolMsgs = sent.messages.filter((m) => m.role === "tool");
+    if (toolMsgs.some((m) => String(m.content).includes("paid-placement feed"))) refused = true;
+    const call = (name, args) => {
+      if (name === "search_products") queries.push(args.query);
+      return { id: "c" + toolMsgs.length, type: "function", function: { name, arguments: JSON.stringify(args) } };
+    };
+    const presentCall = () => [
+      call("present", {
+        message: "JW Pei is the one that actually suits a 21 year old here.",
+        picks: [{ id: idOf("https://x.com/0"), fit: 90, why: "Leather, roomy" }],
+      }),
+    ];
+    const tool_calls =
+      queries.length === 0
+        ? [call("search_products", { query: "chic leather laptop tote 14 inch" })]
+        : !refused
+          ? presentCall()
+          : queries.length === 1
+            ? [call("search_products", { query: "JW Pei leather tote" })]
+            : presentCall();
+    return { ok: true, json: async () => ({ choices: [{ message: { role: "assistant", tool_calls } }] }) };
+  };
+  try {
+    const { payload } = await call(search, { query: "chic leather work tote" });
+    assert.ok(refused, "presenting off one descriptor query must be refused");
+    assert.equal(queries.length, 2, "it went back and searched a brand by name");
+    assert.equal(payload.mode, "results");
+  } finally {
+    global.fetch = original;
+  }
+});
+
+test("a bare question with nothing looked at gets nudged to search", async () => {
+  process.env.SERP_API_KEY = "test";
+  process.env.OPENAI_API_KEY = "test";
+  const original = global.fetch;
+  let nudges = 0;
+  global.fetch = async (url, options) => {
+    if (String(url).includes("serpapi"))
+      return {
+        ok: true,
+        json: async () => ({
+          shopping_results: [{ title: "Cuyana Tote", extracted_price: 298, link: "https://c.com/a", source: "cuyana.com" }],
+        }),
+      };
+    const sent = JSON.parse(options.body);
+    nudges = sent.messages.filter(
+      (m) => m.role === "user" && String(m.content).includes("without looking at anything"),
+    ).length;
+    const toolMsgs = sent.messages.filter((m) => m.role === "tool");
+    const call = (name, args) => ({
+      id: "c" + toolMsgs.length,
+      type: "function",
+      function: { name, arguments: JSON.stringify(args) },
+    });
+    if (!nudges)
+      return {
+        ok: true,
+        json: async () => ({
+          choices: [{ message: { role: "assistant", content: "What size are your laptops?" } }],
+        }),
+      };
+    const tool_calls =
+      toolMsgs.length === 0
+        ? [call("search_products", { query: "Cuyana leather work tote" })]
+        : toolMsgs.length === 1
+          ? [call("search_products", { query: "JW Pei large tote" })]
+          : [
+              call("present", {
+                message: "Started with the roomy leather ones. How big are the laptops?",
+                picks: [{ id: idOf("https://c.com/a"), fit: 85, why: "Leather, fits a 14in" }],
+              }),
+            ];
+    return { ok: true, json: async () => ({ choices: [{ message: { role: "assistant", tool_calls } }] }) };
+  };
+  try {
+    const { payload } = await call(search, { query: "a bag for two macs, leather, professional" });
+    assert.equal(nudges, 1, "nudged once, never in a loop");
+    assert.equal(payload.mode, "results", "she sees bags and the question together");
+    assert.match(payload.summary, /How big are the laptops/);
+  } finally {
+    global.fetch = original;
+  }
+});

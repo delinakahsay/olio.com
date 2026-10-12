@@ -80,6 +80,9 @@ These are structural. The model cannot talk its way past them.
 | Hard requirements forced server side | It labelled "Fits 14 inch laptop" as taste, so a JW Pei crescent bag reached the shortlist. Anything with a measurement, price, size or capability word is forced hard regardless of what the model said. |
 | A product named only in page text is refused | The web tool's version of inventing products. An article naming a $69 brush is a lead to search for, not a product to show. Covered by the same pool-id check, tested against a page that also tries to inject instructions. |
 | A message that re-lists the grid is refused | Reading five roundups made it want to recite five brushes, so the answer became a paragraph naming every product already visible beside it with its price. Naming one standout is good; naming the list is duplicate text. Refused once, then it stands. |
+| Presenting off a single descriptor search is refused | "Chic leather laptop tote 14 inch" ran once and returned bags she could beat off the top of her head. One generic query against a paid-placement feed is a worse Google, which is the thing this app exists not to be. Two angles, or read the web first. |
+| Markdown is stripped from every message | It answered a bag request with "1. **Fits two laptops**: ...". The message renders as one paragraph of serif text, so asterisks render as asterisks. |
+| A bare question with nothing searched gets nudged | Same bag request came back as a numbered restatement plus "what size are your laptops?", which spends a turn and shows nothing. A missing measurement is not a reason to stop. |
 | Resale and marketplace listings sort behind real retailers | Searching by exact product name, which is what reading the web makes it do, pushes the feed toward eBay, Mercari and the dropship clothing sites, because that is where exact-name listings live. Marked for the model, sorted last, never hidden: sometimes resale is the only source. |
 | Directory and people-search pages cannot count as sources | "Best blush brush" read mapquest, yelp and rocketreach, because a general web search reads a product phrase as a local business. Excluded upstream, plus a relevance floor. |
 | No `OPENAI_API_KEY` fails loudly | Degrading to keyword-only search silently is how you end up with a worse Google that nobody can diagnose. |
@@ -97,6 +100,9 @@ Be suspicious of these; they are where the next bug will be.
   the second is a legitimate prose reply. One nudge, then it stands.
 - Whether it reads the web at all on an open-ended request, rather than going
   straight to the feed.
+- **Whether the searches name brands.** The breadth floor forces two searches,
+  not two good ones, and this is the difference between Olio and a search box.
+  Prompted hard, not guaranteed. Watch it.
 - Asking a question *after* results rather than instead of them.
 - Whether a `why` actually addresses the hard requirements.
 - Whether refinements name real category axes or generic filler.
