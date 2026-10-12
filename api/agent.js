@@ -733,6 +733,18 @@ async function runAgent({
 
       if (call.function.name === "search_products") {
         let content;
+        // It repeats a query it already ran, which costs a paid call and
+        // returns rows already in the pool. Seen live: "Sigma F10 Blush Brush"
+        // twice in one turn.
+        const already = str(args.query, 80).toLowerCase();
+        if (already && searches.some((q) => q.toLowerCase() === already)) {
+          messages.push({
+            role: "tool",
+            tool_call_id: call.id,
+            content: `You already searched "${str(args.query, 80)}" this turn and those results are in your pool. Search something different or present.`,
+          });
+          continue;
+        }
         try {
           const rows = await runSearch(serpKey, args);
           rows.forEach((r) => pool.set(r.id, r));
